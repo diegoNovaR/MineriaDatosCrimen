@@ -22,7 +22,7 @@ from config.settings import (
 def _parse_coord(series: pd.Series) -> pd.Series:
     """
     Convierte coordenadas a float manejando tanto punto como coma decimal.
-    Ejemplos válidos: '41.802549018', '41,802549018', '-87,667246428'
+    Ejemplos: '41.802549018', '41,802549018', '-87,667246428'
     """
     return (
         series.astype(str)
@@ -35,56 +35,79 @@ def _parse_coord(series: pd.Series) -> pd.Series:
 
 def _clean_chicago(df: pd.DataFrame) -> pd.DataFrame:
     col = COLUMN_MAP["chicago"]
+    date_parsed = pd.to_datetime(df[col["date"]], errors="coerce", dayfirst=False)
 
-    out = pd.DataFrame()
-    out["city"]          = "chicago"
-    out["date"]          = pd.to_datetime(df[col["date"]], errors="coerce", dayfirst=False)
-    out["year"]          = df[col["year"]].astype("Int64")
-    out["month"]         = out["date"].dt.month
-    out["crime_type"]    = df[col["crime_type"]].str.strip().str.upper()
-    out["description"]   = df[col["description"]].str.strip()
-    out["latitude"]      = _parse_coord(df[col["latitude"]])   # fix coma decimal
-    out["longitude"]     = _parse_coord(df[col["longitude"]])  # fix coma decimal
-    out["arrest"]        = df[col["arrest"]].astype(str).str.strip().str.upper()
-    out["location_desc"] = df[col["location_desc"]].str.strip()
-
+    out = pd.DataFrame({
+        "city"         : "chicago",                              # fix: escalar en constructor
+        "date"         : date_parsed,
+        "year"         : df[col["year"]].astype("Int64"),
+        "month"        : date_parsed.dt.month,
+        "crime_type"   : df[col["crime_type"]].str.strip().str.upper(),
+        "description"  : df[col["description"]].str.strip(),
+        "latitude"     : _parse_coord(df[col["latitude"]]),
+        "longitude"    : _parse_coord(df[col["longitude"]]),
+        "arrest"       : df[col["arrest"]].astype(str).str.strip().str.upper(),
+        "location_desc": df[col["location_desc"]].fillna("UNKNOWN").str.strip(),  # fix nulos
+    })
     return out
 
 
 def _clean_philadelphia(df: pd.DataFrame) -> pd.DataFrame:
     col = COLUMN_MAP["philadelphia"]
+    date_parsed = pd.to_datetime(df[col["date"]], errors="coerce", utc=True)
+    date_parsed = date_parsed.dt.tz_localize(None)   # quitar timezone
 
-    out = pd.DataFrame()
-    out["city"]          = "philadelphia"
-    out["date"]          = pd.to_datetime(df[col["date"]], errors="coerce", utc=True)
-    out["date"]          = out["date"].dt.tz_localize(None)   # quitar timezone
-    out["year"]          = out["date"].dt.year.astype("Int64")
-    out["month"]         = out["date"].dt.month
-    out["crime_type"]    = df[col["crime_type"]].str.strip().str.upper()
-    out["description"]   = df[col["description"]].astype(str).str.strip()
-    out["latitude"]      = _parse_coord(df[col["latitude"]])
-    out["longitude"]     = _parse_coord(df[col["longitude"]])
-    out["arrest"]        = pd.NA    # no existe en este dataset
-    out["location_desc"] = df[col["location_desc"]].str.strip()
+    out = pd.DataFrame({
+        "city"         : "philadelphia",                         # fix: escalar en constructor
+        "date"         : date_parsed,
+        "year"         : date_parsed.dt.year.astype("Int64"),
+        "month"        : date_parsed.dt.month,
+        "crime_type"   : df[col["crime_type"]].str.strip().str.upper(),
+        "description"  : df[col["description"]].astype(str).str.strip(),
+        "latitude"     : _parse_coord(df[col["latitude"]]),
+        "longitude"    : _parse_coord(df[col["longitude"]]),
+        "arrest"       : "N/A",                                  # fix: no existe en este dataset
+        "location_desc": df[col["location_desc"]].str.strip(),
+    })
+
+    # Fix outliers geograficos (12 detectados en EDA)
+    lat_min, lat_max = 39.85, 40.15
+    lon_min, lon_max = -75.3, -74.95
+    mask_valid = (
+        out["latitude"].between(lat_min, lat_max) &
+        out["longitude"].between(lon_min, lon_max)
+    )
+    n_out = (~mask_valid).sum()
+    if n_out > 0:
+        print(f"  [philadelphia] Eliminando {n_out} outliers geográficos")
+    out = out[mask_valid]
 
     return out
 
 
 def _clean_san_francisco(df: pd.DataFrame) -> pd.DataFrame:
     col = COLUMN_MAP["san_francisco"]
+    date_parsed = pd.to_datetime(df[col["date"]], errors="coerce")
 
-    out = pd.DataFrame()
-    out["city"]          = "san_francisco"
-    out["date"]          = pd.to_datetime(df[col["date"]], errors="coerce")
-    out["year"]          = df[col["year"]].astype("Int64")
-    out["month"]         = out["date"].dt.month
-    out["crime_type"]    = df[col["crime_type"]].str.strip().str.upper()
-    out["description"]   = df[col["description"]].str.strip()
-    out["latitude"]      = _parse_coord(df[col["latitude"]])   # fix coma decimal
-    out["longitude"]     = _parse_coord(df[col["longitude"]])  # fix coma decimal
-    # Resolution no es exactamente arrest; marcamos TRUE si dice ARREST
-    out["arrest"]        = df[col["arrest"]].str.upper().str.contains("ARREST", na=False).astype(str)
-    out["location_desc"] = df[col["location_desc"]].str.strip()
+    out = pd.DataFrame({
+        "city"         : "san_francisco",                        # fix: escalar en constructor
+        "date"         : date_parsed,
+        "year"         : df[col["year"]].astype("Int64"),
+        "month"        : date_parsed.dt.month,
+        "crime_type"   : df[col["crime_type"]].str.strip().str.upper(),
+        "description"  : df[col["description"]].str.strip(),
+        "latitude"     : _parse_coord(df[col["latitude"]]),
+        "longitude"    : _parse_coord(df[col["longitude"]]),
+        # Resolution no es arrest exacto; True si contiene "ARREST"
+        "arrest"       : df[col["arrest"]].str.upper().str.contains("ARREST", na=False).astype(str),
+        "location_desc": df[col["location_desc"]].str.strip(),
+    })
+
+    # Fix: eliminar filas sin crime_type (413 detectados en EDA)
+    n_sin_tipo = out["crime_type"].isna().sum()
+    if n_sin_tipo > 0:
+        print(f"  [san_francisco] Eliminando {n_sin_tipo} filas sin crime_type")
+        out = out.dropna(subset=["crime_type"])
 
     return out
 
@@ -98,38 +121,32 @@ def _general_clean(df: pd.DataFrame, city: str) -> pd.DataFrame:
     - Eliminar filas sin fecha
     - Filtrar por rango de años
     - Eliminar duplicados
-    - Resetear índice
     """
     before = len(df)
 
-    # Sin coordenadas → inútiles para mapas
     df = df.dropna(subset=["latitude", "longitude"])
     after_coords = len(df)
 
-    # Sin fecha → inútiles para análisis temporal
     df = df.dropna(subset=["date"])
     after_date = len(df)
 
-    # Filtro de año
     after_year = len(df)
     if YEAR_RANGE is not None:
         y_min, y_max = YEAR_RANGE
         df = df[df["year"].between(y_min, y_max)]
         after_year = len(df)
 
-    # Duplicados exactos
     df = df.drop_duplicates()
     after = len(df)
 
     df = df.reset_index(drop=True)
 
-    # Reporte detallado para diagnosticar dónde se pierden filas
-    print(f"  [{city}] Filas cargadas       : {before:>10,}")
-    print(f"  [{city}] Sin coords (NaN)     : {before - after_coords:>10,} → quedan {after_coords:,}")
-    print(f"  [{city}] Sin fecha (NaN)      : {after_coords - after_date:>10,} → quedan {after_date:,}")
-    print(f"  [{city}] Fuera de año {YEAR_RANGE}: {after_date - after_year:>10,} → quedan {after_year:,}")
-    print(f"  [{city}] Duplicados           : {after_year - after:>10,} → quedan {after:,}")
-    print(f"  [{city}] ✓ FILAS FINALES      : {after:>10,}")
+    print(f"  [{city}] Filas cargadas            : {before:>10,}")
+    print(f"  [{city}] Sin coords (NaN)          : {before - after_coords:>10,} → quedan {after_coords:,}")
+    print(f"  [{city}] Sin fecha  (NaN)          : {after_coords - after_date:>10,} → quedan {after_date:,}")
+    print(f"  [{city}] Fuera de año {YEAR_RANGE} : {after_date - after_year:>10,} → quedan {after_year:,}")
+    print(f"  [{city}] Duplicados                : {after_year - after:>10,} → quedan {after:,}")
+    print(f"  [{city}] ✓ FILAS FINALES           : {after:>10,}")
 
     return df
 
@@ -146,16 +163,6 @@ CITY_CLEANERS = {
 def clean_city(city: str, df_raw: pd.DataFrame, save: bool = True) -> pd.DataFrame:
     """
     Limpia y normaliza el DataFrame de una ciudad al esquema estándar.
-
-    Parámetros
-    ----------
-    city    : clave de ciudad
-    df_raw  : DataFrame crudo retornado por loader.py
-    save    : si True, guarda el CSV procesado en data/processed/
-
-    Retorna
-    -------
-    pd.DataFrame con columnas = STANDARD_COLUMNS
     """
     cleaner = CITY_CLEANERS.get(city)
     if cleaner is None:
@@ -167,8 +174,6 @@ def clean_city(city: str, df_raw: pd.DataFrame, save: bool = True) -> pd.DataFra
 
     df_clean = cleaner(df_raw)
     df_clean = _general_clean(df_clean, city)
-
-    # Garantizar orden de columnas estándar
     df_clean = df_clean[STANDARD_COLUMNS]
 
     if save:
@@ -181,9 +186,6 @@ def clean_city(city: str, df_raw: pd.DataFrame, save: bool = True) -> pd.DataFra
 
 
 def clean_all_cities(raw_dataframes: dict) -> dict:
-    """
-    Limpia los 3 datasets y retorna {ciudad: DataFrame_limpio}.
-    """
     cleaned = {}
     for city, df_raw in raw_dataframes.items():
         cleaned[city] = clean_city(city, df_raw, save=True)
@@ -192,8 +194,7 @@ def clean_all_cities(raw_dataframes: dict) -> dict:
 
 def load_processed(city: str) -> pd.DataFrame:
     """
-    Carga directamente el CSV ya procesado de una ciudad.
-    Usar esto en visualizaciones para no repetir la limpieza.
+    Carga el CSV ya procesado. Usar esto en visualizaciones.
     """
     path = PROCESSED_FILES.get(city)
     if path is None:
@@ -201,7 +202,7 @@ def load_processed(city: str) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(
             f"CSV procesado no encontrado: {path}\n"
-            "Ejecuta primero el pipeline de limpieza."
+            "Ejecuta primero el pipeline de limpieza (main.py)"
         )
     df = pd.read_csv(path, low_memory=False, parse_dates=["date"])
     print(f"✓ Cargado procesado [{city}]: {df.shape[0]:,} filas")
