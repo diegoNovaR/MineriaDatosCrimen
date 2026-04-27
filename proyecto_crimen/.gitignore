@@ -2,3 +2,12 @@ ChicagoData.csv
 PhilaData.csv
 SanFrancisco.csv
 *.csv
+
+
+__pycache__/
+*.pyc
+
+*.png
+*.html
+
+

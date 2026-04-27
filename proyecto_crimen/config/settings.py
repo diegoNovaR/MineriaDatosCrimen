@@ -7,6 +7,8 @@ nombres de columnas y parámetros globales. Sin hardcoding en el resto del códi
 from pathlib import Path
 
 # ─── Rutas ────────────────────────────────────────────────────────────────────
+# Siempre apunta a la raíz del proyecto (carpeta que contiene /config, /src, /data)
+# sin importar desde dónde se ejecute el script
 BASE_DIR       = Path(__file__).resolve().parent.parent
 DATA_RAW_DIR   = BASE_DIR / "data" / "raw"
 DATA_PROC_DIR  = BASE_DIR / "data" / "processed"
@@ -99,4 +101,4 @@ COLUMNS_TO_READ = {
 
 # ─── Filtros opcionales ───────────────────────────────────────────────────────
 # Rango de años a conservar (None = sin filtro)
-YEAR_RANGE = (2018, 2024)
+YEAR_RANGE = (2025, 2026)
