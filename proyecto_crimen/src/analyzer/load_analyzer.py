@@ -75,9 +75,9 @@ def _categoricas(df: pd.DataFrame) -> None:
     print(f"\n[VALORES ÚNICOS — COLUMNAS CATEGÓRICAS CLAVE]")
     for col in categoricas:
         n = df[col].nunique()
-        top = df[col].value_counts().head(3).to_dict()
+        top = df[col].value_counts().head(10).to_dict()
         top_str = ", ".join(f'"{k}"({v:,})' for k, v in top.items())
-        print(f"  {col:<35} únicos={n:>5}  top3: {top_str}")
+        print(f"  {col:<35} únicos={n:>5}  top10: {top_str}")
 
 
 def _outliers_geo(ciudad: str, df: pd.DataFrame) -> None:
