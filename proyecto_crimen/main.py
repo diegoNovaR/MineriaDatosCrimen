@@ -9,6 +9,7 @@ from src.loader.sf_loader import SFLoader
 from src.analyzer import load_analyzer, column_comparator
 from src.analyzer.correlation_analyzer import analizar_correlacion
 from src.analyzer.hypothesis_viz import generar_todas
+from src.analyzer.granularity_analyzer import analizar_granularidad
 from src.cleaner import cleaner_pipeline
 from src.transformer import transformer_pipeline
 from src.transformer.exporter import exportar, cargar_transformados
@@ -88,6 +89,7 @@ def menu_principal():
     print("  5. Comparar columnas entre datasets")
     print("  9. Correlación de Pearson (datasets transformados)")
     print(" 10. Gráficas de hipótesis (H1, H2, H3)")
+    print(" 11. Análisis de granularidad (tipo_delito_detalle y descripcion)")
     print("")
     print("  [LIMPIEZA]")
     print("  6. Limpiar datasets cargados")
@@ -158,6 +160,10 @@ def main():
         elif opcion == "10":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 generar_todas(datasets_transformados)
+
+        elif opcion == "11":
+            if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
+                analizar_granularidad(datasets_transformados)
 
         elif opcion == "0":
             print("\n  Hasta luego.\n")

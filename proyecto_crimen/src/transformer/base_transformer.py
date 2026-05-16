@@ -132,6 +132,9 @@ MAPEO_SF = {
 COLUMNAS_FINALES = [
     "id", "ciudad", "fecha", "anio", "mes", "hora",
     "dia_semana", "es_fin_semana", "periodo_dia",
-    "tipo_delito", "categoria_delito", "es_peligroso",
+    "categoria_delito",        # nivel general    (ej: robo_simple)
+    "tipo_delito_detalle",     # nivel medio       (ej: theft, larceny theft)
+    "descripcion",             # nivel fino        (ej: $500 and under) — solo Chicago y SF
+    "es_peligroso",
     "latitud", "longitud",
 ]

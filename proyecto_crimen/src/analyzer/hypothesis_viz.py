@@ -5,21 +5,14 @@ import matplotlib.ticker as mticker
 import seaborn as sns
 import numpy as np
 
-RUTA_OUTPUTS = os.path.join("outputs")
+from src.translations import (
+    CIUDADES_LABEL, COLORES_CIUDAD,
+    ORDEN_PERIODO, PERIODO_LABEL,
+    ORDEN_DIAS, DIAS_ES,
+    CATEGORIA_LABEL, traducir_serie,
+)
 
-ORDEN_PERIODO = ["madrugada", "mañana", "tarde", "noche"]
-ORDEN_DIAS    = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-DIAS_ES       = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-CIUDADES_LABEL = {
-    "chicago":       "Chicago",
-    "philadelphia":  "Philadelphia",
-    "san_francisco": "San Francisco",
-}
-COLORES_CIUDAD = {
-    "chicago":       "#2196F3",
-    "philadelphia":  "#F44336",
-    "san_francisco": "#4CAF50",
-}
+RUTA_OUTPUTS = os.path.join("outputs")
 
 
 def generar_todas(datasets: dict) -> None:
@@ -183,6 +176,7 @@ def grafica_6_categoria_ciudad(datasets: dict) -> None:
 
     tabla = pd.concat(frames, ignore_index=True)
     categorias = tabla.groupby("categoria_delito")["conteo"].sum().sort_values(ascending=False).index
+    categorias_es = [CATEGORIA_LABEL.get(c, c) for c in categorias]
 
     fig, ax = plt.subplots(figsize=(13, 6))
     ciudades = list(CIUDADES_LABEL.values())
@@ -201,7 +195,7 @@ def grafica_6_categoria_ciudad(datasets: dict) -> None:
     ax.set_xlabel("Categoría de delito")
     ax.set_ylabel("Número de delitos")
     ax.set_xticks(x + ancho)
-    ax.set_xticklabels(categorias, rotation=30, ha="right", fontsize=9)
+    ax.set_xticklabels(categorias_es, rotation=30, ha="right", fontsize=9)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{int(x):,}"))
     ax.legend(title="Ciudad")
     plt.tight_layout()
@@ -227,11 +221,13 @@ def grafica_7_categoria_vs_periodo(datasets: dict) -> None:
             .size()
             .unstack(fill_value=0)
         )
-        # Ordenar columnas por periodo
         cols_ord = [p for p in ORDEN_PERIODO if p in pivot.columns]
         pivot = pivot[cols_ord]
 
-        # Normalizar por fila (% dentro de cada categoría)
+        # Traducir ejes
+        pivot.index = [CATEGORIA_LABEL.get(c, c) for c in pivot.index]
+        pivot.columns = [PERIODO_LABEL.get(p, p) for p in pivot.columns]
+
         pivot_pct = pivot.div(pivot.sum(axis=1), axis=0) * 100
 
         sns.heatmap(
