@@ -10,6 +10,8 @@ from src.analyzer import load_analyzer, column_comparator
 from src.analyzer.correlation_analyzer import analizar_correlacion
 from src.analyzer.hypothesis_viz import generar_todas
 from src.analyzer.granularity_analyzer import analizar_granularidad
+from src.analyzer.eda_analyzer import ejecutar_eda
+from src.model.clustering import ejecutar_clustering
 from src.cleaner import cleaner_pipeline
 from src.transformer import transformer_pipeline
 from src.transformer.exporter import exportar, cargar_transformados
@@ -90,6 +92,10 @@ def menu_principal():
     print("  9. Correlación de Pearson (datasets transformados)")
     print(" 10. Gráficas de hipótesis (H1, H2, H3)")
     print(" 11. Análisis de granularidad (tipo_delito_detalle y descripcion)")
+    print(" 12. EDA formal (descriptivas, distribuciones, patrones, peligrosidad)")
+    print("")
+    print("  [MODELOS]")
+    print(" 13. Clustering (geográfico + comportamental por ciudad)")
     print("")
     print("  [LIMPIEZA]")
     print("  6. Limpiar datasets cargados")
@@ -164,6 +170,14 @@ def main():
         elif opcion == "11":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 analizar_granularidad(datasets_transformados)
+
+        elif opcion == "12":
+            if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
+                ejecutar_eda(datasets_transformados)
+
+        elif opcion == "13":
+            if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
+                ejecutar_clustering(datasets_transformados)
 
         elif opcion == "0":
             print("\n  Hasta luego.\n")

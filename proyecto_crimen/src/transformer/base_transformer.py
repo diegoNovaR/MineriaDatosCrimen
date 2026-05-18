@@ -43,7 +43,10 @@ class BaseTransformer(ABC):
 
     def _agregar_es_peligroso(self) -> pd.DataFrame:
         """Flag basado en categoria_delito unificada."""
-        PELIGROSOS = {"agresion", "robo_con_violencia"}
+        PELIGROSOS = {
+            "agresion", "robo_con_violencia",
+            "agresion_sexual", "delito_contra_menores", "violacion_armas",
+        }
         if "categoria_delito" in self.df.columns:
             self.df["es_peligroso"] = self.df["categoria_delito"].isin(PELIGROSOS)
             print(f"  [peligroso] Peligrosos: {self.df['es_peligroso'].sum():,} / {len(self.df):,}")
@@ -90,16 +93,21 @@ class BaseTransformer(ABC):
 # ─── Mapeo unificado de categorías ───────────────────────────────────────────
 
 MAPEO_CHICAGO = {
-    "theft":             "robo_simple",
-    "battery":           "agresion",
-    "criminal damage":   "daño_propiedad",
-    "assault":           "agresion",
-    "motor vehicle theft": "robo_vehiculo",
-    "other offense":     "warrant_otros",
-    "deceptive practice": "fraude_engaño",
-    "burglary":          "allanamiento",
-    "narcotics":         "drogas",
-    "robbery":           "robo_con_violencia",
+    "theft":                       "robo_simple",
+    "battery":                     "agresion",
+    "criminal damage":             "daño_propiedad",
+    "assault":                     "agresion",
+    "motor vehicle theft":         "robo_vehiculo",
+    "other offense":               "warrant_otros",
+    "deceptive practice":          "fraude_engaño",
+    "burglary":                    "allanamiento",
+    "narcotics":                   "drogas",
+    "robbery":                     "robo_con_violencia",
+    "weapons violation":           "violacion_armas",
+    "criminal trespass":           "allanamiento",
+    "criminal sexual assault":     "agresion_sexual",
+    "offense involving children":  "delito_contra_menores",
+    "sex offense":                 "agresion_sexual",
 }
 
 MAPEO_PHILADELPHIA = {
@@ -113,6 +121,11 @@ MAPEO_PHILADELPHIA = {
     "aggravated assault no firearm":  "agresion",
     "burglary residential":           "allanamiento",
     "narcotic / drug law violations": "drogas",
+    "weapon violations":              "violacion_armas",
+    "aggravated assault firearm":     "robo_con_violencia",
+    "robbery no firearm":             "robo_con_violencia",
+    "burglary non-residential":       "allanamiento",
+    "robbery firearm":                "robo_con_violencia",
 }
 
 MAPEO_SF = {
