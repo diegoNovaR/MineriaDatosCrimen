@@ -15,6 +15,7 @@ from src.model.clustering import ejecutar_clustering
 from src.cleaner import cleaner_pipeline
 from src.transformer import transformer_pipeline
 from src.transformer.exporter import exportar, cargar_transformados
+from src.dashboard.dashboard_generator import generar_dashboard   # ← NUEVO
 
 # ─── Rutas ───────────────────────────────────────────────────────────────────
 RUTAS = {
@@ -78,9 +79,9 @@ def _verificar(datasets: dict, msg: str = "") -> bool:
 # ─── Menú ─────────────────────────────────────────────────────────────────────
 
 def menu_principal():
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 55)
     print("   SISTEMA DE ANÁLISIS DE CRIMEN URBANO")
-    print("=" * 50)
+    print("=" * 55)
     print("  [CARGA]")
     print("  1. Cargar todos los datasets (raw)")
     print("  2. Cargar un dataset individual (raw)")
@@ -104,8 +105,12 @@ def menu_principal():
     print("  7. Transformar datasets limpios")
     print("  8. Exportar datasets transformados a CSV")
     print("")
+    print("  [DASHBOARD]")
+    print(" 14. Generar dashboard interactivo HTML")
+    print("       (mapa temporal peligroso/no peligroso por ciudad)")
+    print("")
     print("  0. Salir")
-    print("=" * 50)
+    print("=" * 55)
     return input("  Selecciona una opción: ").strip()
 
 
@@ -178,6 +183,11 @@ def main():
         elif opcion == "13":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 ejecutar_clustering(datasets_transformados)
+
+        elif opcion == "14":                                          # ← NUEVO
+            if _verificar(datasets_transformados,
+                          "No hay datos transformados. Ejecuta la opción 7 (o 3) primero."):
+                generar_dashboard(datasets_transformados)
 
         elif opcion == "0":
             print("\n  Hasta luego.\n")
