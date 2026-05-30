@@ -12,10 +12,11 @@ from src.analyzer.hypothesis_viz import generar_todas
 from src.analyzer.granularity_analyzer import analizar_granularidad
 from src.analyzer.eda_analyzer import ejecutar_eda
 from src.model.clustering import ejecutar_clustering
+from src.model.feature_engineering import unificar, generar_features, cargar_unificado, cargar_features
+from src.dashboard.dashboard_generator import generar_dashboard
 from src.cleaner import cleaner_pipeline
 from src.transformer import transformer_pipeline
 from src.transformer.exporter import exportar, cargar_transformados
-from src.dashboard.dashboard_generator import generar_dashboard   # ← NUEVO
 
 # ─── Rutas ───────────────────────────────────────────────────────────────────
 RUTAS = {
@@ -79,9 +80,9 @@ def _verificar(datasets: dict, msg: str = "") -> bool:
 # ─── Menú ─────────────────────────────────────────────────────────────────────
 
 def menu_principal():
-    print("\n" + "=" * 55)
+    print("\n" + "=" * 50)
     print("   SISTEMA DE ANÁLISIS DE CRIMEN URBANO")
-    print("=" * 55)
+    print("=" * 50)
     print("  [CARGA]")
     print("  1. Cargar todos los datasets (raw)")
     print("  2. Cargar un dataset individual (raw)")
@@ -98,6 +99,12 @@ def menu_principal():
     print("  [MODELOS]")
     print(" 13. Clustering (geográfico + comportamental por ciudad)")
     print("")
+    print("  [FEATURE ENGINEERING]")
+    print(" 15. Unificar datasets transformados → crime_unified.csv")
+    print(" 16. Generar vector de características → crime_features.csv")
+    print(" 17. Cargar crime_unified.csv")
+    print(" 18. Cargar crime_features.csv")
+    print("")
     print("  [LIMPIEZA]")
     print("  6. Limpiar datasets cargados")
     print("")
@@ -105,12 +112,8 @@ def menu_principal():
     print("  7. Transformar datasets limpios")
     print("  8. Exportar datasets transformados a CSV")
     print("")
-    print("  [DASHBOARD]")
-    print(" 14. Generar dashboard interactivo HTML")
-    print("       (mapa temporal peligroso/no peligroso por ciudad)")
-    print("")
     print("  0. Salir")
-    print("=" * 55)
+    print("=" * 50)
     return input("  Selecciona una opción: ").strip()
 
 
@@ -118,6 +121,8 @@ def main():
     datasets_crudos        = {}
     datasets_limpios       = {}
     datasets_transformados = {}
+    df_unificado           = None
+    df_features            = None
 
     while True:
         opcion = menu_principal()
@@ -184,10 +189,23 @@ def main():
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 ejecutar_clustering(datasets_transformados)
 
-        elif opcion == "14":                                          # ← NUEVO
-            if _verificar(datasets_transformados,
-                          "No hay datos transformados. Ejecuta la opción 7 (o 3) primero."):
-                generar_dashboard(datasets_transformados)
+        elif opcion == "15":
+            if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
+                df_unificado = unificar(datasets_transformados)
+                print(f"\n  ✔ Unificado listo: {len(df_unificado):,} filas")
+
+        elif opcion == "16":
+            if df_unificado is None:
+                print("\n  [AVISO] Primero unifica los datasets (opción 15 o 17).")
+            else:
+                df_features = generar_features(df_unificado)
+                print(f"\n  ✔ Vector listo: {df_features.shape[1]} columnas")
+
+        elif opcion == "17":
+            df_unificado = cargar_unificado()
+
+        elif opcion == "18":
+            df_features = cargar_features()
 
         elif opcion == "0":
             print("\n  Hasta luego.\n")
