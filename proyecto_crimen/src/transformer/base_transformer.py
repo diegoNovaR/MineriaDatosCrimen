@@ -11,7 +11,6 @@ class BaseTransformer(ABC):
         self.df = df.copy()
 
     def transformar(self) -> pd.DataFrame:
-        """Pipeline completo de transformación."""
         print(f"\n{'='*50}")
         print(f"  TRANSFORMACIÓN: {self.CIUDAD}")
         print(f"{'='*50}")
@@ -28,24 +27,27 @@ class BaseTransformer(ABC):
 
     @abstractmethod
     def _extraer_temporales(self) -> pd.DataFrame:
-        """Extrae hora, dia_semana, es_fin_semana, mes, periodo_dia desde fecha."""
         pass
 
     @abstractmethod
     def _unificar_tipo_delito(self) -> pd.DataFrame:
-        """Mapea tipo_delito local a categoría unificada."""
         pass
 
     @abstractmethod
     def _seleccionar_columnas(self) -> pd.DataFrame:
-        """Selecciona y ordena las columnas finales."""
         pass
 
     def _agregar_es_peligroso(self) -> pd.DataFrame:
-        """Flag basado en categoria_delito unificada."""
         PELIGROSOS = {
-            "agresion", "robo_con_violencia",
-            "agresion_sexual", "delito_contra_menores", "violacion_armas",
+            "agresion",
+            "robo_con_violencia",
+            "agresion_sexual",
+            "delito_contra_menores",
+            "violacion_armas",
+            "homicidio",
+            "arson",
+            "amenaza_acoso",
+            "trata_personas",
         }
         if "categoria_delito" in self.df.columns:
             self.df["es_peligroso"] = self.df["categoria_delito"].isin(PELIGROSOS)
@@ -53,10 +55,6 @@ class BaseTransformer(ABC):
         return self.df
 
     def _calcular_temporales(self, df: pd.DataFrame, col_fecha: str, col_hora: str = None) -> pd.DataFrame:
-        """
-        Calcula features temporales comunes.
-        col_hora: nombre de columna hora si ya existe (int), si no se extrae de col_fecha.
-        """
         PERIODOS = {
             range(0, 6):   "madrugada",
             range(6, 12):  "mañana",
@@ -66,14 +64,13 @@ class BaseTransformer(ABC):
 
         fecha = df[col_fecha]
 
-        # Hora
         if col_hora and col_hora in df.columns:
             df["hora"] = pd.to_numeric(df[col_hora], errors="coerce").astype("Int64")
         else:
             df["hora"] = fecha.dt.hour.astype("Int64")
 
-        df["mes"]        = fecha.dt.month.astype("Int64")
-        df["dia_semana"] = fecha.dt.day_name().str.lower()
+        df["mes"]           = fecha.dt.month.astype("Int64")
+        df["dia_semana"]    = fecha.dt.day_name().str.lower()
         df["es_fin_semana"] = fecha.dt.dayofweek >= 5
 
         def get_periodo(h):
@@ -85,69 +82,135 @@ class BaseTransformer(ABC):
             return "no registrado"
 
         df["periodo_dia"] = df["hora"].apply(get_periodo)
-
         print(f"  [temporales] hora, mes, dia_semana, es_fin_semana, periodo_dia generados.")
         return df
 
 
-# ─── Mapeo unificado de categorías ───────────────────────────────────────────
+# ─── Mapeos ───────────────────────────────────────────────────────────────────
 
 MAPEO_CHICAGO = {
-    "theft":                       "robo_simple",
-    "battery":                     "agresion",
-    "criminal damage":             "daño_propiedad",
-    "assault":                     "agresion",
-    "motor vehicle theft":         "robo_vehiculo",
-    "other offense":               "warrant_otros",
-    "deceptive practice":          "fraude_engaño",
-    "burglary":                    "allanamiento",
-    "narcotics":                   "drogas",
-    "robbery":                     "robo_con_violencia",
-    "weapons violation":           "violacion_armas",
-    "criminal trespass":           "allanamiento",
-    "criminal sexual assault":     "agresion_sexual",
-    "offense involving children":  "delito_contra_menores",
-    "sex offense":                 "agresion_sexual",
+    "theft":                              "robo_simple",
+    "battery":                            "agresion",
+    "criminal damage":                    "daño_propiedad",
+    "assault":                            "agresion",
+    "motor vehicle theft":                "robo_vehiculo",
+    "other offense":                      "orden_publico",
+    "deceptive practice":                 "fraude_engaño",
+    "burglary":                           "allanamiento",
+    "narcotics":                          "drogas",
+    "other narcotic violation":           "drogas",
+    "robbery":                            "robo_con_violencia",
+    "weapons violation":                  "violacion_armas",
+    "concealed carry license violation":  "violacion_armas",
+    "criminal trespass":                  "allanamiento",
+    "criminal sexual assault":            "agresion_sexual",
+    "offense involving children":         "delito_contra_menores",
+    "sex offense":                        "agresion_sexual",
+    "homicide":                           "homicidio",
+    "arson":                              "arson",
+    "stalking":                           "amenaza_acoso",
+    "intimidation":                       "amenaza_acoso",
+    "kidnapping":                         "amenaza_acoso",
+    "human trafficking":                  "trata_personas",
+    "public peace violation":             "orden_publico",
+    "interference with public officer":   "orden_publico",
+    "liquor law violation":               "orden_publico",
+    "prostitution":                       "orden_publico",
+    "gambling":                           "orden_publico",
+    "obscenity":                          "orden_publico",
+    "public indecency":                   "orden_publico",
+    "non-criminal":                       "sin_relevancia",
 }
 
 MAPEO_PHILADELPHIA = {
-    "thefts":                         "robo_simple",
-    "other assaults":                 "agresion",
-    "all other offenses":             "warrant_otros",
-    "motor vehicle theft":            "robo_vehiculo",
-    "vandalism/criminal mischief":    "daño_propiedad",
-    "theft from vehicle":             "robo_simple",
-    "fraud":                          "fraude_engaño",
-    "aggravated assault no firearm":  "agresion",
-    "burglary residential":           "allanamiento",
-    "narcotic / drug law violations": "drogas",
-    "weapon violations":              "violacion_armas",
-    "aggravated assault firearm":     "robo_con_violencia",
-    "robbery no firearm":             "robo_con_violencia",
-    "burglary non-residential":       "allanamiento",
-    "robbery firearm":                "robo_con_violencia",
+    "thefts":                                   "robo_simple",
+    "theft from vehicle":                       "robo_simple",
+    "receiving stolen property":                "robo_simple",
+    "other assaults":                           "agresion",
+    "aggravated assault no firearm":            "agresion",
+    "all other offenses":                       "sin_relevancia",
+    "motor vehicle theft":                      "robo_vehiculo",
+    "vandalism/criminal mischief":              "daño_propiedad",
+    "fraud":                                    "fraude_engaño",
+    "embezzlement":                             "fraude_engaño",
+    "forgery and counterfeiting":               "fraude_engaño",
+    "burglary residential":                     "allanamiento",
+    "burglary non-residential":                 "allanamiento",
+    "narcotic / drug law violations":           "drogas",
+    "weapon violations":                        "violacion_armas",
+    "aggravated assault firearm":               "robo_con_violencia",
+    "robbery no firearm":                       "robo_con_violencia",
+    "robbery firearm":                          "robo_con_violencia",
+    "rape":                                     "agresion_sexual",
+    "other sex offenses (not commercialized)":  "agresion_sexual",
+    "offenses against family and children":     "delito_contra_menores",
+    "homicide - criminal":                      "homicidio",
+    "arson":                                    "arson",
+    "disorderly conduct":                       "orden_publico",
+    "driving under the influence":              "orden_publico",
+    "public drunkenness":                       "orden_publico",
+    "vagrancy/loitering":                       "orden_publico",
+    "liquor law violations":                    "orden_publico",
+    "gambling violations":                      "orden_publico",
+    "prostitution and commercialized vice":     "orden_publico",
 }
 
 MAPEO_SF = {
-    "larceny theft":      "robo_simple",
-    "assault":            "agresion",
-    "drug offense":       "drogas",
-    "other miscellaneous": "warrant_otros",
-    "malicious mischief": "daño_propiedad",
-    "warrant":            "warrant_otros",
-    "burglary":           "allanamiento",
-    "motor vehicle theft": "robo_vehiculo",
-    "non-criminal":       "warrant_otros",
-    "fraud":              "fraude_engaño",
+    "larceny theft":                                  "robo_simple",
+    "stolen property":                                "robo_simple",
+    "assault":                                        "agresion",
+    "drug offense":                                   "drogas",
+    "drug violation":                                 "drogas",
+    "other miscellaneous":                            "sin_relevancia",
+    "other":                                          "sin_relevancia",
+    "other offenses":                                 "sin_relevancia",
+    "case closure":                                   "sin_relevancia",
+    "courtesy report":                                "sin_relevancia",
+    "no registrado":                                  "sin_relevancia",
+    "malicious mischief":                             "daño_propiedad",
+    "vandalism":                                      "daño_propiedad",
+    "warrant":                                        "orden_publico",
+    "non-criminal":                                   "sin_relevancia",
+    "burglary":                                       "allanamiento",
+    "motor vehicle theft":                            "robo_vehiculo",
+    "motor vehicle theft?":                           "robo_vehiculo",
+    "recovered vehicle":                              "robo_vehiculo",
+    "vehicle impounded":                              "robo_vehiculo",
+    "vehicle misplaced":                              "robo_vehiculo",
+    "fraud":                                          "fraude_engaño",
+    "forgery and counterfeiting":                     "fraude_engaño",
+    "embezzlement":                                   "fraude_engaño",
+    "lost property":                                  "sin_relevancia",
+    "missing person":                                 "sin_relevancia",
+    "disorderly conduct":                             "orden_publico",
+    "civil sidewalks":                                "orden_publico",
+    "prostitution":                                   "orden_publico",
+    "gambling":                                       "orden_publico",
+    "liquor laws":                                    "orden_publico",
+    "traffic violation arrest":                       "orden_publico",
+    "traffic collision":                              "orden_publico",
+    "suspicious occ":                                 "orden_publico",
+    "suspicious":                                     "orden_publico",
+    "miscellaneous investigation":                    "sin_relevancia",
+    "fire report":                                    "sin_relevancia",
+    "robbery":                                        "robo_con_violencia",
+    "weapons offense":                                "violacion_armas",
+    "weapons carrying etc":                           "violacion_armas",
+    "weapons offence":                                "violacion_armas",
+    "sex offense":                                    "agresion_sexual",
+    "rape":                                           "agresion_sexual",
+    "offences against the family and children":       "delito_contra_menores",
+    "homicide":                                       "homicidio",
+    "arson":                                          "arson",
+    "suicide":                                        "sin_relevancia",
+    "human trafficking (a), commercial sex acts":     "trata_personas",
+    "human trafficking, commercial sex acts":         "trata_personas",
 }
 
-# Columnas finales comunes para los 3 datasets
+# ─── Columnas finales ─────────────────────────────────────────────────────────
 COLUMNAS_FINALES = [
     "id", "ciudad", "fecha", "anio", "mes", "hora",
     "dia_semana", "es_fin_semana", "periodo_dia",
-    "categoria_delito",        # nivel general    (ej: robo_simple)
-    "tipo_delito_detalle",     # nivel medio       (ej: theft, larceny theft)
-    "descripcion",             # nivel fino        (ej: $500 and under) — solo Chicago y SF
-    "es_peligroso",
+    "categoria_delito", "es_peligroso",
     "latitud", "longitud",
 ]

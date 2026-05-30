@@ -48,19 +48,24 @@ DIAS_ES = [DIA_LABEL[d] for d in ORDEN_DIAS]
 
 # ─── Categorías de delito (nivel general) ─────────────────────────────────────
 CATEGORIA_LABEL = {
-    "robo_simple":          "Robo simple",
-    "agresion":             "Agresión",
-    "daño_propiedad":       "Daño a propiedad",
-    "robo_vehiculo":        "Robo de vehículo",
-    "fraude_engaño":        "Fraude / Engaño",
-    "robo_con_violencia":   "Robo con violencia",
-    "allanamiento":         "Allanamiento",
-    "drogas":               "Drogas",
-    "warrant_otros":        "Orden judicial / Otros",
-    "agresion_sexual":      "Agresión sexual",
-    "delito_contra_menores":"Delito contra menores",
-    "violacion_armas":      "Violación de armas",
-    "otros":                "Otros",
+    "robo_simple":           "Robo simple",
+    "agresion":              "Agresión",
+    "daño_propiedad":        "Daño a propiedad",
+    "robo_vehiculo":         "Robo de vehículo",
+    "fraude_engaño":         "Fraude / Engaño",
+    "robo_con_violencia":    "Robo con violencia",
+    "allanamiento":          "Allanamiento",
+    "drogas":                "Drogas",
+    "violacion_armas":       "Violación de armas",
+    "agresion_sexual":       "Agresión sexual",
+    "delito_contra_menores": "Delito contra menores",
+    "homicidio":             "Homicidio",
+    "arson":                 "Incendio provocado",
+    "amenaza_acoso":         "Amenaza / Acoso / Secuestro",
+    "trata_personas":        "Trata de personas",
+    "orden_publico":         "Orden público",
+    "sin_relevancia":        "Sin clasificación",
+    "otros":                 "Otros",
 }
 
 # ─── Tipo de delito detalle (nivel medio) ─────────────────────────────────────

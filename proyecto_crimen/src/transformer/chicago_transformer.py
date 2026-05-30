@@ -22,7 +22,5 @@ class ChicagoTransformer(BaseTransformer):
 
     def _seleccionar_columnas(self) -> pd.DataFrame:
         self.df["ciudad"] = "chicago"
-        if "tipo_delito" in self.df.columns:
-            self.df = self.df.rename(columns={"tipo_delito": "tipo_delito_detalle"})
         cols = [c for c in COLUMNAS_FINALES if c in self.df.columns]
         return self.df[cols]
