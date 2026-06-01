@@ -18,6 +18,7 @@ from src.dashboard.dashboard_generator import generar_dashboard
 from src.cleaner import cleaner_pipeline
 from src.transformer import transformer_pipeline
 from src.transformer.exporter import exportar, cargar_transformados
+from src.analyzer.pca_hypothesis_plots import generar_graficas_hipotesis
 
 
 # ─── Rutas ───────────────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ def menu_principal():
     print(" 18. Cargar crime_features.csv")
     print(" 19. Aplicar PCA → crime_pca.csv")
     print(" 20. Cargar crime_pca.csv")
+    print(" 21. Gráficas de hipótesis PCA (H1, H2, H3 + adicionales)")
     print("")
     print("  [LIMPIEZA]")
     print("  6. Limpiar datasets cargados")
@@ -221,6 +223,13 @@ def main():
  
         elif opcion == "20":
             df_pca = cargar_pca()
+            
+        elif opcion == "21":
+            if df_pca is None:
+                print("\n  [AVISO] Primero carga o genera el PCA (opción 19 o 20).")
+            else:
+                generar_graficas_hipotesis(df_pca, df_unificado)
+                print(f"\n  ✔ Gráficas guardadas en outputs/pca/")
  
         elif opcion == "0":
             print("\n  Hasta luego.\n")
