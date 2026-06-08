@@ -1,7 +1,8 @@
 
-
+*crime_pca.csv
 
 __pycache__/
 *.pyc
 
 
+proyecto_crimen/data/processed/crime_pca.csv
