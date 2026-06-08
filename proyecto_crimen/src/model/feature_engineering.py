@@ -7,7 +7,7 @@ RUTA_PROCESSED   = os.path.join("data", "processed")
 ARCHIVO_UNIFICADO = os.path.join(RUTA_PROCESSED, "crime_unified.csv")
 ARCHIVO_FEATURES  = os.path.join(RUTA_PROCESSED, "crime_features.csv")
 
-COLS_ESCALAR = ["hora", "mes", "latitud", "longitud"]
+COLS_ESCALAR = ["hora", "mes"]
 
 COLS_ELIMINAR_FEATURES = ["id", "fecha", "ciudad"]
 

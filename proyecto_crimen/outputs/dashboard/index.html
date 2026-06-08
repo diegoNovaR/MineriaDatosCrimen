@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Crime Dashboard — Urban Analysis 2025</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#08080f;color:#e0e0f0;font-family:'IBM Plex Sans',sans-serif;
+      min-height:100vh;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;padding:40px 20px;}
+h1{font-family:'Bebas Neue',sans-serif;font-size:3.2rem;letter-spacing:6px;
+    text-align:center;margin-bottom:6px;
+    background:linear-gradient(135deg,#fff 40%,#ff3b5c);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.sub{font-family:'IBM Plex Mono',monospace;font-size:.65rem;color:#4a4a6a;
+      letter-spacing:3px;text-align:center;text-transform:uppercase;margin-bottom:44px;}
+.cards{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;}
+.card{width:240px;background:#0e0e1a;border:1px solid #1a1a2e;border-radius:4px;
+       overflow:hidden;text-decoration:none;color:#e0e0f0;
+       transition:transform .2s,border-color .2s;cursor:pointer;}
+.card:hover{transform:translateY(-5px);border-color:var(--cc);}
+.card-top{height:110px;position:relative;overflow:hidden;
+           display:flex;align-items:flex-end;padding:12px;
+           background:linear-gradient(135deg,#050518,#0a0a28);}
+.dots{position:absolute;top:0;left:0;right:0;bottom:0;}
+.card-city{position:relative;z-index:1;line-height:1;}
+.card-body{padding:12px;}
+.card-arrow{font-family:'IBM Plex Mono',monospace;font-size:.6rem;color:#4a4a6a;
+             letter-spacing:2px;display:flex;align-items:center;gap:6px;}
+.card-arrow span{flex:1;height:1px;background:#1a1a2e;}
+.leg{display:flex;gap:18px;margin-top:36px;justify-content:center;}
+.li{display:flex;align-items:center;gap:5px;font-size:.66rem;color:#4a4a6a;
+     font-family:'IBM Plex Mono',monospace;letter-spacing:1px;text-transform:uppercase;}
+.ld{width:8px;height:8px;border-radius:50%;}
+</style></head><body>
+<h1>URBAN CRIME MAP</h1>
+<div class="sub">Análisis Temporal · Peligroso vs No Peligroso · 2025</div>
+<div class="cards">
+  <a class="card" href="chicago.html" style="--cc:#4f8eff;--ccd:#4f8eff55">
+    <div class="card-top">
+      <canvas class="dots" id="dots-chicago"></canvas>
+      <div class="card-city" style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:3px; color:var(--cc)">CHICAGO</div>
+    </div>
+    <div class="card-body">
+      <div class="card-arrow"><span></span> ABRIR DASHBOARD →</div>
+    </div>
+  </a>
+  <a class="card" href="philadelphia.html" style="--cc:#f0c040;--ccd:#f0c04055">
+    <div class="card-top">
+      <canvas class="dots" id="dots-philadelphia"></canvas>
+      <div class="card-city" style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:900; color:var(--cc)">Philadelphia</div>
+    </div>
+    <div class="card-body">
+      <div class="card-arrow"><span></span> ABRIR DASHBOARD →</div>
+    </div>
+  </a>
+  <a class="card" href="san_francisco.html" style="--cc:#f5a623;--ccd:#f5a62355">
+    <div class="card-top">
+      <canvas class="dots" id="dots-san_francisco"></canvas>
+      <div class="card-city" style="font-family:'DM Serif Display',serif;font-size:1.4rem; color:var(--cc)">San Francisco</div>
+    </div>
+    <div class="card-body">
+      <div class="card-arrow"><span></span> ABRIR DASHBOARD →</div>
+    </div>
+  </a></div>
+<div class="leg">
+  <span class="li"><span class="ld" style="background:#ff3b5c"></span>Peligroso</span>
+  <span class="li"><span class="ld" style="background:#00c9a7"></span>No peligroso</span>
+</div>
+<script>
+function animDots(id,col){
+  const c=document.getElementById(id); if(!c)return;
+  const ctx=c.getContext('2d');
+  const W=c.parentElement.clientWidth,H=c.parentElement.clientHeight;
+  c.width=W;c.height=H;
+  const hex=col.replace('#','');
+  const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+  const pts=Array.from({length:55},()=>({
+    x:Math.random()*W,y:Math.random()*H,
+    vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,
+    r:1.2+Math.random()*2,
+    col:`rgba(${r},${g},${b},${.3+Math.random()*.4})`
+  }));
+  (function step(){
+    ctx.clearRect(0,0,W,H);
+    pts.forEach(p=>{
+      p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=p.col;ctx.fill();
+    });
+    requestAnimationFrame(step);
+  })();
+}
+  animDots('dots-chicago', '#4f8eff');
+  animDots('dots-philadelphia', '#f0c040');
+  animDots('dots-san_francisco', '#f5a623');
+</script></body></html>

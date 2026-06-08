@@ -1,8 +1,8 @@
 import os
 import sys
- 
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
- 
+
 from src.loader.chicago_loader import ChicagoLoader
 from src.loader.phila_loader import PhilaLoader
 from src.loader.sf_loader import SFLoader
@@ -13,13 +13,12 @@ from src.analyzer.granularity_analyzer import analizar_granularidad
 from src.analyzer.eda_analyzer import ejecutar_eda
 from src.model.clustering import ejecutar_clustering
 from src.model.feature_engineering import unificar, generar_features, cargar_unificado, cargar_features
-from src.model.pca_reducer import aplicar_pca, cargar_pca
-from src.dashboard.dashboard_generator import generar_dashboard
+from src.model.pca_reducer import aplicar_pca, cargar_pca_2d, cargar_pca_3d
+from src.model.pca_viz import graficar_interactivo
+#from src.dashboard.web_dashboard import generar_web_dashboard
 from src.cleaner import cleaner_pipeline
 from src.transformer import transformer_pipeline
 from src.transformer.exporter import exportar, cargar_transformados
-from src.analyzer.pca_hypothesis_plots import generar_graficas_hipotesis
-
 
 # ─── Rutas ───────────────────────────────────────────────────────────────────
 RUTAS = {
@@ -27,16 +26,16 @@ RUTAS = {
     "philadelphia":  os.path.join("data", "raw", "PhilaData.csv"),
     "san_francisco": os.path.join("data", "raw", "SanFranciscoData.csv"),
 }
- 
+
 LOADERS = {
     "chicago":       ChicagoLoader,
     "philadelphia":  PhilaLoader,
     "san_francisco": SFLoader,
 }
- 
- 
+
+
 # ─── Carga raw ────────────────────────────────────────────────────────────────
- 
+
 def cargar_todos(anio: int = 2025) -> dict:
     datasets = {}
     for ciudad, Loader in LOADERS.items():
@@ -47,41 +46,41 @@ def cargar_todos(anio: int = 2025) -> dict:
         loader = Loader(ruta)
         datasets[ciudad] = loader.cargar(anio=anio)
     return datasets
- 
- 
+
+
 def cargar_individual(anio: int = 2025) -> dict:
     print("\n  Selecciona la ciudad:")
     ciudades = list(LOADERS.keys())
     for i, c in enumerate(ciudades, 1):
         print(f"    {i}. {c.replace('_', ' ').title()}")
- 
+
     opcion = input("\n  Opción: ").strip()
     try:
         ciudad = ciudades[int(opcion) - 1]
     except (ValueError, IndexError):
         print("  [ERROR] Opción inválida.")
         return {}
- 
+
     ruta = RUTAS[ciudad]
     if not os.path.exists(ruta):
         print(f"\n[ERROR] No se encontró: {ruta}")
         return {}
- 
+
     loader = LOADERS[ciudad](ruta)
     return {ciudad: loader.cargar(anio=anio)}
- 
- 
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
- 
+
 def _verificar(datasets: dict, msg: str = "") -> bool:
     if not datasets:
         print(f"\n  [AVISO] {msg}" if msg else "\n  [AVISO] No hay datasets disponibles.")
         return False
     return True
- 
- 
+
+
 # ─── Menú ─────────────────────────────────────────────────────────────────────
- 
+
 def menu_principal():
     print("\n" + "=" * 50)
     print("   SISTEMA DE ANÁLISIS DE CRIMEN URBANO")
@@ -107,9 +106,9 @@ def menu_principal():
     print(" 16. Generar vector de características → crime_features.csv")
     print(" 17. Cargar crime_unified.csv")
     print(" 18. Cargar crime_features.csv")
-    print(" 19. Aplicar PCA → crime_pca.csv")
-    print(" 20. Cargar crime_pca.csv")
-    print(" 21. Gráficas de hipótesis PCA (H1, H2, H3 + adicionales)")
+    print(" 19. Aplicar PCA 2D y 3D → crime_pca_2d.csv / crime_pca_3d.csv")
+    print(" 20. Cargar crime_pca_2d.csv y crime_pca_3d.csv")
+    print(" 21. Visualización interactiva PCA (Plotly HTML)")
     print("")
     print("  [LIMPIEZA]")
     print("  6. Limpiar datasets cargados")
@@ -121,25 +120,26 @@ def menu_principal():
     print("  0. Salir")
     print("=" * 50)
     return input("  Selecciona una opción: ").strip()
- 
- 
+
+
 def main():
     datasets_crudos        = {}
     datasets_limpios       = {}
     datasets_transformados = {}
     df_unificado           = None
     df_features            = None
-    df_pca                 = None
- 
+    df_pca_2d              = None
+    df_pca_3d              = None
+
     while True:
         opcion = menu_principal()
- 
+
         if opcion == "1":
             datasets_crudos = cargar_todos(anio=2025)
             datasets_limpios = {}
             datasets_transformados = {}
             print(f"\n  ✔ Datasets cargados: {list(datasets_crudos.keys())}")
- 
+
         elif opcion == "2":
             resultado = cargar_individual(anio=2025)
             datasets_crudos.update(resultado)
@@ -147,97 +147,99 @@ def main():
             datasets_transformados = {}
             if resultado:
                 print(f"\n  ✔ Dataset cargado: {list(resultado.keys())[0]}")
- 
+
         elif opcion == "3":
             datasets_transformados = cargar_transformados()
             datasets_crudos = {}
             datasets_limpios = {}
- 
+
         elif opcion == "4":
             src = datasets_transformados or datasets_limpios or datasets_crudos
             if _verificar(src, "No hay datasets. Usa opción 1, 2 o 3."):
                 load_analyzer.analizar(src)
- 
+
         elif opcion == "5":
             src = datasets_transformados or datasets_limpios or datasets_crudos
             if _verificar(src, "No hay datasets. Usa opción 1, 2 o 3."):
                 column_comparator.comparar(src)
- 
+
         elif opcion == "6":
             if _verificar(datasets_crudos, "No hay datos crudos. Usa opción 1 o 2 primero."):
                 datasets_limpios = cleaner_pipeline.limpiar(datasets_crudos)
                 datasets_transformados = {}
- 
+
         elif opcion == "7":
             if _verificar(datasets_limpios, "No hay datos limpios. Ejecuta la opción 6 primero."):
                 datasets_transformados = transformer_pipeline.transformar(datasets_limpios)
- 
+
         elif opcion == "8":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 exportar(datasets_transformados)
- 
+
         elif opcion == "9":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 analizar_correlacion(datasets_transformados)
- 
+
         elif opcion == "10":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 generar_todas(datasets_transformados)
- 
+
         elif opcion == "11":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 analizar_granularidad(datasets_transformados)
- 
+
         elif opcion == "12":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 ejecutar_eda(datasets_transformados)
- 
+
         elif opcion == "13":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 ejecutar_clustering(datasets_transformados)
- 
+
         elif opcion == "15":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 df_unificado = unificar(datasets_transformados)
                 print(f"\n  ✔ Unificado listo: {len(df_unificado):,} filas")
- 
+
         elif opcion == "16":
             if df_unificado is None:
                 print("\n  [AVISO] Primero unifica los datasets (opción 15 o 17).")
             else:
                 df_features = generar_features(df_unificado)
                 print(f"\n  ✔ Vector listo: {df_features.shape[1]} columnas")
- 
+
         elif opcion == "17":
             df_unificado = cargar_unificado()
- 
+
         elif opcion == "18":
             df_features = cargar_features()
- 
+
         elif opcion == "19":
             if df_features is None:
                 print("\n  [AVISO] Primero genera el vector de características (opción 16 o 18).")
+            elif df_unificado is None:
+                print("\n  [AVISO] Primero carga el dataset unificado (opción 15 o 17).")
             else:
-                df_pca = aplicar_pca(df_features)
-                print(f"\n  ✔ PCA listo: {df_pca.shape[1]} componentes")
- 
+                df_pca_2d, df_pca_3d = aplicar_pca(df_features, df_unificado)
+                print(f"\n  ✔ PCA listo: 2D={df_pca_2d.shape[1]} cols  3D={df_pca_3d.shape[1]} cols")
+
         elif opcion == "20":
-            df_pca = cargar_pca()
-            
+            df_pca_2d = cargar_pca_2d()
+            df_pca_3d = cargar_pca_3d()
+
         elif opcion == "21":
-            if df_pca is None:
-                print("\n  [AVISO] Primero carga o genera el PCA (opción 19 o 20).")
+            if df_pca_2d is None or df_pca_3d is None:
+                print("\n  [AVISO] Primero aplica o carga el PCA (opción 19 o 20).")
             else:
-                generar_graficas_hipotesis(df_pca, df_unificado)
-                print(f"\n  ✔ Gráficas guardadas en outputs/pca/")
- 
+                graficar_interactivo(df_pca_2d, df_pca_3d)
+
         elif opcion == "0":
             print("\n  Hasta luego.\n")
             break
- 
+
         else:
             print("\n  [ERROR] Opción no válida.")
- 
- 
+
+
 if __name__ == "__main__":
     main()
