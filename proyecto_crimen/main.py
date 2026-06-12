@@ -230,8 +230,10 @@ def main():
         elif opcion == "21":
             if df_pca_2d is None or df_pca_3d is None:
                 print("\n  [AVISO] Primero aplica o carga el PCA (opción 19 o 20).")
+            elif df_unificado is None:
+                print("\n  [AVISO] Primero carga el dataset unificado (opción 17).")
             else:
-                graficar_interactivo(df_pca_2d, df_pca_3d)
+                graficar_interactivo(df_pca_2d, df_pca_3d, df_unificado)
 
         elif opcion == "0":
             print("\n  Hasta luego.\n")

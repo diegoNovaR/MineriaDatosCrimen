@@ -3,13 +3,12 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
-RUTA_PROCESSED   = os.path.join("data", "processed")
+RUTA_PROCESSED    = os.path.join("data", "processed")
 ARCHIVO_UNIFICADO = os.path.join(RUTA_PROCESSED, "crime_unified.csv")
 ARCHIVO_FEATURES  = os.path.join(RUTA_PROCESSED, "crime_features.csv")
 
-COLS_ESCALAR = ["hora", "mes"]
-
-COLS_ELIMINAR_FEATURES = ["id", "fecha", "ciudad"]
+# Categorías con <1% de registros — se excluyen del vector
+CATS_RARAS = {"cat_trata_personas", "cat_amenaza_acoso", "cat_arson", "cat_homicidio"}
 
 
 def unificar(datasets: dict) -> pd.DataFrame:
@@ -41,12 +40,11 @@ def unificar(datasets: dict) -> pd.DataFrame:
 
 def generar_features(df_unificado: pd.DataFrame) -> pd.DataFrame:
     """
-    Genera el vector de características numérico desde el dataset unificado.
-    - Elimina id, fecha, ciudad
-    - Estandariza hora, mes, latitud, longitud (StandardScaler)
-    - anio se conserva como entero sin escalar
-    - One-hot encoding: categoria_delito, periodo_dia, dia_semana
-    - Convierte es_fin_semana y es_peligroso a int
+    Vector de características: ~25 columnas para PCA.
+    - Escala : hora, mes (StandardScaler)
+    - OHE    : categoria_delito (sin categorías raras), dia_semana, ciudad
+    - Elimina: id, fecha, anio, latitud, longitud,
+               es_fin_semana, es_peligroso, periodo_dia
     """
     print(f"\n{'='*50}")
     print(f"  GENERANDO VECTOR DE CARACTERÍSTICAS")
@@ -54,47 +52,40 @@ def generar_features(df_unificado: pd.DataFrame) -> pd.DataFrame:
 
     df = df_unificado.copy()
 
-    # 1. Booleanos a int ANTES de cualquier otra operación
-    for col in ["es_fin_semana", "es_peligroso"]:
-        if col in df.columns:
-            df[col] = df[col].astype(bool).astype(int)
-
-    # 2. Eliminar columnas no útiles para modelos (ciudad va como OHE, no se elimina aquí)
-    cols_drop = [c for c in ["id", "fecha"] if c in df.columns]
+    # 1. Eliminar columnas que no van al vector
+    COLS_DROP = ["id", "fecha", "anio", "latitud", "longitud",
+                 "es_fin_semana", "es_peligroso", "periodo_dia"]
+    cols_drop = [c for c in COLS_DROP if c in df.columns]
     df = df.drop(columns=cols_drop)
     print(f"  [drop] Eliminadas: {cols_drop}")
 
-    # 3. Estandarizar numéricas (hora, mes, latitud, longitud)
-    cols_escalar = [c for c in COLS_ESCALAR if c in df.columns]
-    scaler = StandardScaler()
-    df_scaled = scaler.fit_transform(df[cols_escalar])
+    # 2. Estandarizar hora y mes
+    cols_escalar = [c for c in ["hora", "mes"] if c in df.columns]
+    scaler   = StandardScaler()
+    escalado = scaler.fit_transform(df[cols_escalar])
     for i, col in enumerate(cols_escalar):
-        df[f"{col}_scaled"] = df_scaled[:, i]
+        df[f"{col}_scaled"] = escalado[:, i]
     df = df.drop(columns=cols_escalar)
-    print(f"  [scaler] Estandarizadas: {cols_escalar}")
-    print(f"  [scaler] Media  : { {c: round(scaler.mean_[i], 4) for i, c in enumerate(cols_escalar)} }")
-    print(f"  [scaler] Std    : { {c: round(scaler.scale_[i], 4) for i, c in enumerate(cols_escalar)} }")
+    print(f"  [scaler] Estandarizadas : {cols_escalar}")
+    print(f"  [scaler] Media          : { {c: round(scaler.mean_[i], 4) for i, c in enumerate(cols_escalar)} }")
+    print(f"  [scaler] Std            : { {c: round(scaler.scale_[i], 4) for i, c in enumerate(cols_escalar)} }")
 
-    # 4. One-hot encoding
-    COLS_OHE = {
-        "categoria_delito": "cat",
-        "periodo_dia":      "periodo",
-        "dia_semana":       "dia",
-        "ciudad":           "ciudad",
-    }
-    for col, prefijo in COLS_OHE.items():
+    # 3. OHE categoria_delito — excluir categorías raras (<1%)
+    if "categoria_delito" in df.columns:
+        dummies = pd.get_dummies(df["categoria_delito"], prefix="cat").astype(int)
+        dummies = dummies[[c for c in dummies.columns if c not in CATS_RARAS]]
+        df = pd.concat([df.drop(columns=["categoria_delito"]), dummies], axis=1)
+        print(f"  [ohe] categoria_delito → {list(dummies.columns)}")
+
+    # 4. OHE dia_semana y ciudad
+    for col, prefijo in [("dia_semana", "dia"), ("ciudad", "ciudad")]:
         if col in df.columns:
             dummies = pd.get_dummies(df[col], prefix=prefijo).astype(int)
             df = pd.concat([df.drop(columns=[col]), dummies], axis=1)
             print(f"  [ohe] {col} → {list(dummies.columns)}")
 
-    # 5. anio se conserva como int sin escalar
-    if "anio" in df.columns:
-        df["anio"] = df["anio"].astype("Int64")
-        print(f"  [anio] Conservado como entero sin escalar (valor actual: {df['anio'].unique()})")
-
-    print(f"\n  Total columnas del vector: {df.shape[1]}")
-    print(f"  Columnas finales: {list(df.columns)}")
+    print(f"\n  Total columnas del vector : {df.shape[1]}")
+    print(f"  Columnas finales          : {list(df.columns)}")
 
     df.to_csv(ARCHIVO_FEATURES, index=False, encoding="utf-8")
     print(f"\n  Exportado → {ARCHIVO_FEATURES}")
