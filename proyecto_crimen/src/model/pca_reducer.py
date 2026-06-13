@@ -9,13 +9,23 @@ RUTA_OUTPUTS    = os.path.join("outputs", "pca")
 ARCHIVO_PCA_2D  = os.path.join(RUTA_PROCESSED, "crime_pca_2d.csv")
 ARCHIVO_PCA_3D  = os.path.join(RUTA_PROCESSED, "crime_pca_3d.csv")
 
-# Columnas que no entran al PCA
-COLS_EXCLUIR = ["anio"]
+# Solo estas columnas entran al PCA — mayoría continuas, mínimo binario
+COLS_PCA = [
+    "hora_scaled",
+    "mes_scaled",
+    "temperatura_scaled",
+    "precipitacion_scaled",
+    "viento_scaled",
+    "es_peligroso",
+    "ciudad_chicago",
+    "ciudad_philadelphia",
+    "ciudad_san_francisco",
+]
 
 
 def aplicar_pca(df_features: pd.DataFrame, df_unificado: pd.DataFrame) -> tuple:
     """
-    Aplica PCA reduciendo a 2D y 3D.
+    Aplica PCA reduciendo a 2D y 3D usando solo variables continuas + ciudad OHE.
     Los CSVs resultantes contienen SOLO los componentes (pc1, pc2, pc3).
     La alineación con datos reales se hace por índice de fila en pca_viz.py.
     """
@@ -26,9 +36,18 @@ def aplicar_pca(df_features: pd.DataFrame, df_unificado: pd.DataFrame) -> tuple:
     print(f"  PCA — REDUCCIÓN A 2D y 3D")
     print(f"{'='*50}")
 
-    # Preparar matriz de entrada
-    cols_excluir = [c for c in COLS_EXCLUIR if c in df_features.columns]
-    X = df_features.drop(columns=cols_excluir).copy()
+    # Seleccionar solo las columnas definidas para PCA
+    cols_disponibles = [c for c in COLS_PCA if c in df_features.columns]
+    cols_faltantes   = [c for c in COLS_PCA if c not in df_features.columns]
+    if cols_faltantes:
+        print(f"  [AVISO] Columnas no encontradas: {cols_faltantes}")
+
+    X = df_features[cols_disponibles].copy()
+
+    # Rellenar nulos con media
+    if X.isnull().sum().sum() > 0:
+        X = X.fillna(X.mean())
+        print(f"  [info] Nulos rellenados con media")
 
     # Eliminar columnas con varianza 0
     cols_var_cero = X.columns[X.std() == 0].tolist()
@@ -36,7 +55,7 @@ def aplicar_pca(df_features: pd.DataFrame, df_unificado: pd.DataFrame) -> tuple:
         X = X.drop(columns=cols_var_cero)
         print(f"  [info] Columnas varianza 0 omitidas: {cols_var_cero}")
 
-    print(f"  Columnas entrada : {X.shape[1]}")
+    print(f"  Columnas entrada : {X.shape[1]}  {list(X.columns)}")
     print(f"  Filas            : {len(X):,}")
 
     # ── PCA 2D ────────────────────────────────────────────────

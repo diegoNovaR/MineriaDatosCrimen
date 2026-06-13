@@ -15,6 +15,10 @@ from src.model.clustering import ejecutar_clustering
 from src.model.feature_engineering import unificar, generar_features, cargar_unificado, cargar_features
 from src.model.pca_reducer import aplicar_pca, cargar_pca_2d, cargar_pca_3d
 from src.model.pca_viz import graficar_interactivo
+from src.model.umap_reducer import aplicar_umap, cargar_umap_2d
+from src.model.umap_viz import graficar_umap
+from src.loader.weather_loader import cargar_clima
+from src.transformer.weather_merger import unir_clima, analizar_nulos_clima
 #from src.dashboard.web_dashboard import generar_web_dashboard
 from src.cleaner import cleaner_pipeline
 from src.transformer import transformer_pipeline
@@ -109,6 +113,15 @@ def menu_principal():
     print(" 19. Aplicar PCA 2D y 3D → crime_pca_2d.csv / crime_pca_3d.csv")
     print(" 20. Cargar crime_pca_2d.csv y crime_pca_3d.csv")
     print(" 21. Visualización interactiva PCA (Plotly HTML)")
+    print(" 28. Cargar unificado + features y aplicar PCA (todo en uno)")
+    print(" 22. Aplicar UMAP 2D → crime_umap_2d.csv")
+    print(" 23. Cargar crime_umap_2d.csv")
+    print(" 24. Visualización interactiva UMAP (Plotly HTML)")
+    print(" 27. Cargar unificado + features y aplicar UMAP (todo en uno)")
+    print("")
+    print("  [CLIMA]")
+    print(" 25. Cargar clima y unir a crime_unified.csv")
+    print(" 26. Análisis de nulos post-unión clima")
     print("")
     print("  [LIMPIEZA]")
     print("  6. Limpiar datasets cargados")
@@ -130,6 +143,7 @@ def main():
     df_features            = None
     df_pca_2d              = None
     df_pca_3d              = None
+    df_umap_2d             = None
 
     while True:
         opcion = menu_principal()
@@ -234,6 +248,59 @@ def main():
                 print("\n  [AVISO] Primero carga el dataset unificado (opción 17).")
             else:
                 graficar_interactivo(df_pca_2d, df_pca_3d, df_unificado)
+
+        elif opcion == "22":
+            if df_features is None:
+                print("\n  [AVISO] Primero genera el vector de características (opción 16 o 18).")
+            elif df_unificado is None:
+                print("\n  [AVISO] Primero carga el dataset unificado (opción 15 o 17).")
+            else:
+                df_umap_2d = aplicar_umap(df_features, df_unificado)
+                print(f"\n  ✔ UMAP listo: {len(df_umap_2d):,} filas")
+
+        elif opcion == "23":
+            df_umap_2d = cargar_umap_2d()
+
+        elif opcion == "24":
+            if df_umap_2d is None:
+                print("\n  [AVISO] Primero aplica o carga UMAP (opción 22 o 23).")
+            elif df_unificado is None:
+                print("\n  [AVISO] Primero carga el dataset unificado (opción 15 o 17).")
+            else:
+                graficar_umap(df_umap_2d, df_unificado)
+
+        elif opcion == "25":
+            if df_unificado is None:
+                print("\n  [AVISO] Primero carga el dataset unificado (opción 15 o 17).")
+            else:
+                datasets_clima = cargar_clima()
+                if datasets_clima:
+                    df_unificado = unir_clima(df_unificado, datasets_clima)
+                    print(f"\n  ✔ Clima unido. Nuevas columnas: temperatura, precipitacion, viento")
+
+        elif opcion == "26":
+            if df_unificado is None:
+                print("\n  [AVISO] Primero carga el dataset unificado (opción 17).")
+            else:
+                analizar_nulos_clima(df_unificado)
+
+        elif opcion == "27":
+            # Todo en uno: carga unificado + features y aplica UMAP
+            df_unificado = cargar_unificado()
+            if not df_unificado.empty:
+                df_features = cargar_features()
+                if not df_features.empty:
+                    df_umap_2d = aplicar_umap(df_features, df_unificado)
+                    print(f"\n  ✔ UMAP listo: {len(df_umap_2d):,} filas")
+
+        elif opcion == "28":
+            # Todo en uno: carga unificado + features y aplica PCA
+            df_unificado = cargar_unificado()
+            if not df_unificado.empty:
+                df_features = cargar_features()
+                if not df_features.empty:
+                    df_pca_2d, df_pca_3d = aplicar_pca(df_features, df_unificado)
+                    print(f"\n  ✔ PCA listo: 2D={df_pca_2d.shape[1]} cols  3D={df_pca_3d.shape[1]} cols")
 
         elif opcion == "0":
             print("\n  Hasta luego.\n")

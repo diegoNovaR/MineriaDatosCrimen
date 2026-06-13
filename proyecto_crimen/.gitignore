@@ -4,5 +4,5 @@
 __pycache__/
 *.pyc
 
-
+data/raw/*
 proyecto_crimen/data/processed/crime_pca.csv

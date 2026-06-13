@@ -8,6 +8,13 @@ from src.translations import CIUDADES_LABEL, CATEGORIA_LABEL
 
 RUTA_OUTPUTS = os.path.join("outputs", "pca")
 
+# ─── Controla cuántos puntos se muestran en las visualizaciones ──────────────
+# Se distribuye equitativamente entre las 3 ciudades (33% cada una)
+N_MUESTRA = 30_000
+
+MARKER_SIZE    = 2.5
+MARKER_OPACITY = 0.4
+
 COLORES_CIUDAD = {
     "Chicago":       "#2196F3",
     "Philadelphia":  "#F44336",
@@ -17,6 +24,28 @@ COLORES_PELIGROSO = {
     "Peligroso":     "#EF5350",
     "No peligroso":  "#42A5F5",
 }
+
+
+def _muestra_estratificada(d: pd.DataFrame) -> pd.DataFrame:
+    """Toma N_MUESTRA filas distribuidas equitativamente entre ciudades."""
+    if "ciudad_label" not in d.columns or len(d) <= N_MUESTRA:
+        return d.reset_index(drop=True)
+
+    ciudades = d["ciudad_label"].unique()
+    n_por_ciudad = N_MUESTRA // len(ciudades)
+    frames = []
+    rng = np.random.default_rng(42)
+
+    for ciudad in ciudades:
+        sub = d[d["ciudad_label"] == ciudad]
+        n   = min(n_por_ciudad, len(sub))
+        idx = rng.choice(len(sub), size=n, replace=False)
+        frames.append(sub.iloc[idx])
+
+    resultado = pd.concat(frames, ignore_index=True)
+    print(f"  [muestra] {len(resultado):,} puntos "
+          f"({n_por_ciudad:,} por ciudad aprox)")
+    return resultado
 
 
 def graficar_interactivo(df_pca_2d: pd.DataFrame,
@@ -38,15 +67,13 @@ def graficar_interactivo(df_pca_2d: pd.DataFrame,
     pca3 = df_pca_3d.iloc[:n].reset_index(drop=True)
     unif = df_unificado.iloc[:n].reset_index(drop=True)
 
-    # Construir DataFrame combinado para hover
+    # Combinar PCA con datos reales
     d2 = _combinar(pca2, unif)
     d3 = _combinar(pca3, unif)
 
-    # Muestra para rendimiento
-    n_muestra = min(30_000, len(d2))
-    idx = np.random.default_rng(42).choice(len(d2), size=n_muestra, replace=False)
-    d2m = d2.iloc[idx].reset_index(drop=True)
-    d3m = d3.iloc[idx].reset_index(drop=True)
+    # Muestra estratificada por ciudad
+    d2m = _muestra_estratificada(d2)
+    d3m = _muestra_estratificada(d3)
 
     # Generar gráficas
     _scatter_2d(d2m, "ciudad_label", COLORES_CIUDAD,
@@ -104,9 +131,9 @@ def _scatter_2d(d: pd.DataFrame, color_col: str, color_map: dict,
         labels={"pc1": "Componente Principal 1",
                 "pc2": "Componente Principal 2",
                 color_col: legend_title},
-        opacity=0.5,
+        opacity=MARKER_OPACITY,
     )
-    fig.update_traces(marker=dict(size=3), hovertemplate=hover)
+    fig.update_traces(marker=dict(size=MARKER_SIZE), hovertemplate=hover)
     fig.update_layout(
         template="plotly_white",
         title_font_size=14,
@@ -136,9 +163,9 @@ def _scatter_3d(d: pd.DataFrame, color_col: str, color_map: dict,
         title=f"{titulo}<br><sup>Hover sobre un punto para ver datos reales del delito</sup>",
         labels={"pc1": "PC1", "pc2": "PC2", "pc3": "PC3",
                 color_col: legend_title},
-        opacity=0.5,
+        opacity=MARKER_OPACITY,
     )
-    fig.update_traces(marker=dict(size=2), hovertemplate=hover)
+    fig.update_traces(marker=dict(size=max(1.5, MARKER_SIZE - 1)), hovertemplate=hover)
     fig.update_layout(
         template="plotly_white",
         title_font_size=14,

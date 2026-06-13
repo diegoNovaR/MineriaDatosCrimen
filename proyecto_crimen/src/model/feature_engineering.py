@@ -59,8 +59,9 @@ def generar_features(df_unificado: pd.DataFrame) -> pd.DataFrame:
     df = df.drop(columns=cols_drop)
     print(f"  [drop] Eliminadas: {cols_drop}")
 
-    # 2. Estandarizar hora y mes
-    cols_escalar = [c for c in ["hora", "mes"] if c in df.columns]
+    # 2. Estandarizar hora, mes y columnas de clima
+    cols_escalar = [c for c in ["hora", "mes", "temperatura", "precipitacion", "viento"]
+                    if c in df.columns]
     scaler   = StandardScaler()
     escalado = scaler.fit_transform(df[cols_escalar])
     for i, col in enumerate(cols_escalar):
