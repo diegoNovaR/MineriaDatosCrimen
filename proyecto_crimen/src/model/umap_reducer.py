@@ -17,18 +17,14 @@ METRIC         = "euclidean"
 # Filas para ENTRENAR el modelo (estratificado por ciudad)
 N_ENTRENAMIENTO = 50_000
 
-COLS_CONTINUAS = ["hora_scaled", "mes_scaled", "es_peligroso",
-                  "temperatura_scaled", "precipitacion_scaled", "viento_scaled"]
+COLS_CONTINUAS = ["hora_scaled", "mes_scaled", "es_peligroso", "es_feriado",
+                  "temperatura_scaled", "viento_scaled"]
 
 
-def _construir_matriz(df_features: pd.DataFrame,
-                      df_unificado: pd.DataFrame) -> pd.DataFrame:
-    """Construye la matriz de entrada combinando features + lat/lon."""
+def _construir_matriz(df_features: pd.DataFrame) -> pd.DataFrame:
+    """Construye la matriz de entrada solo desde el vector de características.
+    Ya NO incluye latitud/longitud por indicación de la profesora."""
     df_entrada = pd.DataFrame()
-
-    for col in ["latitud", "longitud"]:
-        if col in df_unificado.columns:
-            df_entrada[col] = df_unificado[col].values
 
     for col in COLS_CONTINUAS:
         if col in df_features.columns:
@@ -87,8 +83,8 @@ def aplicar_umap(df_features: pd.DataFrame,
     df_feat = df_features.iloc[:n].reset_index(drop=True)
     df_unif = df_unificado.iloc[:n].reset_index(drop=True)
 
-    # Construir matriz completa
-    X = _construir_matriz(df_feat, df_unif)
+    # Construir matriz completa (solo desde el vector de características)
+    X = _construir_matriz(df_feat)
 
     print(f"  Columnas entrada : {X.shape[1]}")
     print(f"  Filas totales    : {len(X):,}")

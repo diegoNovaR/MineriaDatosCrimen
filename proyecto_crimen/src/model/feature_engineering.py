@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import holidays
 from sklearn.preprocessing import StandardScaler
 
 RUTA_PROCESSED    = os.path.join("data", "processed")
@@ -9,6 +10,13 @@ ARCHIVO_FEATURES  = os.path.join(RUTA_PROCESSED, "crime_features.csv")
 
 # Categorías con <1% de registros — se excluyen del vector
 CATS_RARAS = {"cat_trata_personas", "cat_amenaza_acoso", "cat_arson", "cat_homicidio"}
+
+# Mapeo ciudad -> estado para feriados específicos
+ESTADO_POR_CIUDAD = {
+    "chicago":       "IL",
+    "philadelphia":  "PA",
+    "san_francisco": "CA",
+}
 
 
 def unificar(datasets: dict) -> pd.DataFrame:
@@ -38,29 +46,55 @@ def unificar(datasets: dict) -> pd.DataFrame:
     return df_unificado
 
 
+def _agregar_es_feriado(df: pd.DataFrame) -> pd.DataFrame:
+    """Agrega columna es_feriado (0/1) según el estado de cada ciudad."""
+    anios = df["fecha"].dt.year.unique().tolist()
+    calendarios = {
+        ciudad: holidays.US(state=estado, years=anios)
+        for ciudad, estado in ESTADO_POR_CIUDAD.items()
+    }
+
+    def check_feriado(row):
+        cal = calendarios.get(row["ciudad"])
+        if cal is None:
+            return 0
+        return int(row["fecha"].date() in cal)
+
+    df["es_feriado"] = df.apply(check_feriado, axis=1)
+    n_feriados = df["es_feriado"].sum()
+    print(f"  [feriado] Registros en día feriado: {n_feriados:,} "
+          f"({n_feriados/len(df)*100:.2f}%)")
+    return df
+
+
 def generar_features(df_unificado: pd.DataFrame) -> pd.DataFrame:
     """
-    Vector de características: ~25 columnas para PCA.
-    - Escala : hora, mes (StandardScaler)
+    Vector de características para PCA/UMAP.
+    - Escala : hora, mes, temperatura, viento (StandardScaler)
     - OHE    : categoria_delito (sin categorías raras), dia_semana, ciudad
+    - Agrega : es_feriado (0/1) calculado con librería holidays
     - Elimina: id, fecha, anio, latitud, longitud,
-               es_fin_semana, es_peligroso, periodo_dia
+               es_fin_semana, periodo_dia, precipitacion
     """
     print(f"\n{'='*50}")
     print(f"  GENERANDO VECTOR DE CARACTERÍSTICAS")
     print(f"{'='*50}")
 
     df = df_unificado.copy()
+    df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
 
-    # 1. Eliminar columnas que no van al vector
+    # 1. Agregar es_feriado ANTES de eliminar fecha
+    df = _agregar_es_feriado(df)
+
+    # 2. Eliminar columnas que no van al vector
     COLS_DROP = ["id", "fecha", "anio", "latitud", "longitud",
-                 "es_fin_semana", "es_peligroso", "periodo_dia"]
+                 "es_fin_semana", "periodo_dia", "precipitacion"]
     cols_drop = [c for c in COLS_DROP if c in df.columns]
     df = df.drop(columns=cols_drop)
     print(f"  [drop] Eliminadas: {cols_drop}")
 
-    # 2. Estandarizar hora, mes y columnas de clima
-    cols_escalar = [c for c in ["hora", "mes", "temperatura", "precipitacion", "viento"]
+    # 3. Estandarizar hora, mes, temperatura, viento
+    cols_escalar = [c for c in ["hora", "mes", "temperatura", "viento"]
                     if c in df.columns]
     scaler   = StandardScaler()
     escalado = scaler.fit_transform(df[cols_escalar])
@@ -71,19 +105,23 @@ def generar_features(df_unificado: pd.DataFrame) -> pd.DataFrame:
     print(f"  [scaler] Media          : { {c: round(scaler.mean_[i], 4) for i, c in enumerate(cols_escalar)} }")
     print(f"  [scaler] Std            : { {c: round(scaler.scale_[i], 4) for i, c in enumerate(cols_escalar)} }")
 
-    # 3. OHE categoria_delito — excluir categorías raras (<1%)
+    # 4. OHE categoria_delito — excluir categorías raras (<1%)
     if "categoria_delito" in df.columns:
         dummies = pd.get_dummies(df["categoria_delito"], prefix="cat").astype(int)
         dummies = dummies[[c for c in dummies.columns if c not in CATS_RARAS]]
         df = pd.concat([df.drop(columns=["categoria_delito"]), dummies], axis=1)
         print(f"  [ohe] categoria_delito → {list(dummies.columns)}")
 
-    # 4. OHE dia_semana y ciudad
+    # 5. OHE dia_semana y ciudad
     for col, prefijo in [("dia_semana", "dia"), ("ciudad", "ciudad")]:
         if col in df.columns:
             dummies = pd.get_dummies(df[col], prefix=prefijo).astype(int)
             df = pd.concat([df.drop(columns=[col]), dummies], axis=1)
             print(f"  [ohe] {col} → {list(dummies.columns)}")
+
+    # 6. es_peligroso a int (booleano original)
+    if "es_peligroso" in df.columns:
+        df["es_peligroso"] = df["es_peligroso"].astype(bool).astype(int)
 
     print(f"\n  Total columnas del vector : {df.shape[1]}")
     print(f"  Columnas finales          : {list(df.columns)}")

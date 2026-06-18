@@ -10,10 +10,10 @@ from plotly.subplots import make_subplots
 # ─── Configuración ────────────────────────────────────────────────────────────
 RUTA_UNIFIED  = os.path.join("data", "processed", "crime_unified.csv")
 RUTA_UMAP     = os.path.join("data", "processed", "crime_umap_2d.csv")
-N_MUESTRA     = 200_000   # puntos por scatter (estratificado por ciudad)
+N_MUESTRA     = 90_000   # puntos por scatter (estratificado por ciudad)
 RANDOM_STATE  = 42
 
-METODO_INFO = "UMAP  |  n_neighbors=15  |  min_dist=0.1  |  metric=euclidean"
+METODO_INFO = "UMAP  |  n_neighbors=15  |  min_dist=0.1  |  metric=euclidean  |  sin lat/lon en el vector"
 
 COLORES_CIUDAD = {
     "Chicago":       "#2196F3",
@@ -68,6 +68,17 @@ def cargar_datos():
     df["categoria_label"]= df["categoria_delito"].map(CATEGORIA_LABEL).fillna(df["categoria_delito"])
     df["peligroso_label"]= df["es_peligroso"].astype(bool).map({True: "Peligroso", False: "No peligroso"})
     df["fecha_str"]      = pd.to_datetime(df["fecha"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
+
+    # Calcular es_feriado (igual que en feature_engineering.py)
+    import holidays
+    ESTADO_POR_CIUDAD = {"chicago": "IL", "philadelphia": "PA", "san_francisco": "CA"}
+    anios = df["fecha"].dt.year.dropna().unique().tolist()
+    calendarios = {c: holidays.US(state=e, years=anios) for c, e in ESTADO_POR_CIUDAD.items()}
+    df["es_feriado"] = df.apply(
+        lambda row: int(row["fecha"].date() in calendarios.get(row["ciudad"], {}))
+        if pd.notna(row["fecha"]) else 0,
+        axis=1
+    )
 
     print(f"Datos cargados: {len(df):,} registros")
     return df
@@ -352,9 +363,10 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad):
                            coloraxis_colorbar=dict(thickness=12, len=0.8))
 
     # ── Coordenadas paralelas ───────────────────────────────────────────────
-    df_para = df_sel[["hora", "mes", "temperatura", "precipitacion",
+    df_para = df_sel[["hora", "mes", "temperatura", "es_feriado",
                        "viento", "es_peligroso"]].copy()
     df_para["es_peligroso"] = df_para["es_peligroso"].astype(int)
+    df_para["es_feriado"]   = df_para["es_feriado"].astype(int)
     df_para["ciudad_num"]   = df_sel["ciudad_label"].map(
         {"Chicago": 0, "Philadelphia": 1, "San Francisco": 2}).fillna(-1)
 
@@ -362,7 +374,8 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad):
         dict(label="Hora",         values=df_para["hora"],         range=[0, 23]),
         dict(label="Mes",          values=df_para["mes"],          range=[1, 12]),
         dict(label="Temperatura",  values=df_para["temperatura"]),
-        dict(label="Precipitación",values=df_para["precipitacion"]),
+        dict(label="Feriado",      values=df_para["es_feriado"],   range=[0, 1],
+             tickvals=[0, 1], ticktext=["No", "Sí"]),
         dict(label="Viento",       values=df_para["viento"]),
         dict(label="Peligroso",    values=df_para["es_peligroso"], range=[0, 1],
              tickvals=[0, 1], ticktext=["No", "Sí"]),
@@ -416,8 +429,8 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad):
 
     # ── Tabla comparativa ───────────────────────────────────────────────────
     COLS_TABLA = ["idx_original", "ciudad_label", "categoria_label", "peligroso_label",
-                  "hora", "mes", "fecha_str", "latitud", "longitud",
-                  "temperatura", "precipitacion", "viento", "umap1", "umap2"]
+                  "hora", "mes", "fecha_str", "es_feriado", "latitud", "longitud",
+                  "temperatura", "viento", "umap1", "umap2"]
     cols_disp = [c for c in COLS_TABLA if c in df_sel.columns]
     df_tabla  = df_sel[cols_disp].round(4)
 
@@ -429,10 +442,10 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad):
         "hora":            "Hora",
         "mes":             "Mes",
         "fecha_str":       "Fecha",
+        "es_feriado":      "Feriado",
         "latitud":         "Latitud",
         "longitud":        "Longitud",
         "temperatura":     "Temp (°C)",
-        "precipitacion":   "Precip (mm)",
         "viento":          "Viento (km/h)",
         "umap1":           "UMAP 1",
         "umap2":           "UMAP 2",
