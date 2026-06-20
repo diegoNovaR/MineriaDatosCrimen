@@ -15,7 +15,7 @@ RANDOM_STATE   = 42
 METRIC         = "euclidean"
 
 # Filas para ENTRENAR el modelo (estratificado por ciudad)
-N_ENTRENAMIENTO = 50_000
+N_ENTRENAMIENTO = 250_000
 
 COLS_CONTINUAS = ["hora_scaled", "mes_scaled", "es_peligroso", "es_feriado",
                   "temperatura_scaled", "viento_scaled"]

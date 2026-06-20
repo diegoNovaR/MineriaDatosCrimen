@@ -17,6 +17,7 @@ from src.model.pca_reducer import aplicar_pca, cargar_pca_2d, cargar_pca_3d
 from src.model.pca_viz import graficar_interactivo
 from src.model.umap_reducer import aplicar_umap, cargar_umap_2d
 from src.model.umap_viz import graficar_umap
+from src.model.kmeans_clustering import aplicar_kmeans, cargar_clusters
 from src.loader.weather_loader import cargar_clima
 from src.transformer.weather_merger import unir_clima, analizar_nulos_clima
 #from src.dashboard.web_dashboard import generar_web_dashboard
@@ -103,7 +104,9 @@ def menu_principal():
     print(" 12. EDA formal (descriptivas, distribuciones, patrones, peligrosidad)")
     print("")
     print("  [MODELOS]")
-    print(" 13. Clustering (geográfico + comportamental por ciudad)")
+    print(" 13. Clustering geográfico + comportamental por ciudad")
+    print(" 29. Aplicar K-Means sobre vector de características")
+    print(" 30. Cargar crime_clusters.csv")
     print("")
     print("  [FEATURE ENGINEERING]")
     print(" 15. Unificar datasets transformados → crime_unified.csv")
@@ -144,6 +147,7 @@ def main():
     df_pca_2d              = None
     df_pca_3d              = None
     df_umap_2d             = None
+    df_clusters            = None
 
     while True:
         opcion = menu_principal()
@@ -209,6 +213,16 @@ def main():
         elif opcion == "13":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
                 ejecutar_clustering(datasets_transformados)
+
+        elif opcion == "29":
+            if df_features is None:
+                print("\n  [AVISO] Primero carga el vector de características (opción 16 o 18).")
+            else:
+                df_clusters = aplicar_kmeans(df_features)
+                print(f"\n  ✔ K-Means listo: {df_clusters['cluster'].nunique()} clusters")
+
+        elif opcion == "30":
+            df_clusters = cargar_clusters()
 
         elif opcion == "15":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):

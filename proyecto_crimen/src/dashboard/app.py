@@ -8,9 +8,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # ─── Configuración ────────────────────────────────────────────────────────────
-RUTA_UNIFIED  = os.path.join("data", "processed", "crime_unified.csv")
-RUTA_UMAP     = os.path.join("data", "processed", "crime_umap_2d.csv")
-N_MUESTRA     = 90_000   # puntos por scatter (estratificado por ciudad)
+RUTA_UNIFIED   = os.path.join("data", "processed", "crime_unified.csv")
+RUTA_UMAP      = os.path.join("data", "processed", "crime_umap_2d.csv")
+RUTA_CLUSTERS  = os.path.join("data", "processed", "crime_clusters.csv")
+N_MUESTRA     = 95_000   # puntos por scatter (estratificado por ciudad)
 RANDOM_STATE  = 42
 
 METODO_INFO = "UMAP  |  n_neighbors=15  |  min_dist=0.1  |  metric=euclidean  |  sin lat/lon en el vector"
@@ -80,6 +81,16 @@ def cargar_datos():
         axis=1
     )
 
+    # Agregar clusters si existen
+    if os.path.exists(RUTA_CLUSTERS):
+        df_clusters = pd.read_csv(RUTA_CLUSTERS)
+        n_cl = min(len(df_clusters), n)
+        df["cluster"] = df_clusters["cluster"].iloc[:n_cl].values
+        df["cluster_label"] = "Cluster " + df["cluster"].astype(str)
+        print(f"  Clusters cargados: {df['cluster'].nunique()} grupos")
+    else:
+        df["cluster_label"] = "Sin cluster"
+
     print(f"Datos cargados: {len(df):,} registros")
     return df
 
@@ -120,9 +131,10 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id="dd-color",
                 options=[
-                    {"label": "Ciudad",       "value": "ciudad_label"},
-                    {"label": "Categoría",    "value": "categoria_label"},
-                    {"label": "Peligrosidad", "value": "peligroso_label"},
+                    {"label": "Ciudad",           "value": "ciudad_label"},
+                    {"label": "Categoría",         "value": "categoria_label"},
+                    {"label": "Peligrosidad",      "value": "peligroso_label"},
+                    {"label": "Cluster K-Means",   "value": "cluster_label"},
                 ],
                 value="ciudad_label",
                 clearable=False,
@@ -266,6 +278,9 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size):
         color_map = COLORES_CIUDAD
     elif color_col == "peligroso_label":
         color_map = COLORES_PELIGROSO
+    elif color_col == "cluster_label":
+        # Paleta automática para clusters
+        color_map = None
     else:
         color_map = None
 
@@ -273,6 +288,7 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size):
         "ciudad_label":    "Ciudad",
         "categoria_label": "Categoría",
         "peligroso_label": "Peligrosidad",
+        "cluster_label":   "Cluster K-Means",
     }
 
     fig = px.scatter(
@@ -281,7 +297,7 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size):
         color_discrete_map=color_map,
         custom_data=["idx_original", "ciudad_label", "categoria_label",
                      "peligroso_label", "hora", "mes", "fecha_str",
-                     "latitud", "longitud", "temperatura"],
+                     "latitud", "longitud", "temperatura", "cluster_label"],
         labels={"umap1": "UMAP 1", "umap2": "UMAP 2", color_col: label_map.get(color_col, color_col)},
         opacity=0.5,
     )
@@ -298,6 +314,7 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size):
             "<b>Latitud</b>: %{customdata[7]}<br>"
             "<b>Longitud</b>: %{customdata[8]}<br>"
             "<b>Temperatura</b>: %{customdata[9]}°C<br>"
+            "<b>Cluster</b>: %{customdata[10]}<br>"
             "<extra></extra>"
         )
     )
@@ -429,8 +446,8 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad):
 
     # ── Tabla comparativa ───────────────────────────────────────────────────
     COLS_TABLA = ["idx_original", "ciudad_label", "categoria_label", "peligroso_label",
-                  "hora", "mes", "fecha_str", "es_feriado", "latitud", "longitud",
-                  "temperatura", "viento", "umap1", "umap2"]
+                  "cluster_label", "hora", "mes", "fecha_str", "es_feriado",
+                  "latitud", "longitud", "temperatura", "viento", "umap1", "umap2"]
     cols_disp = [c for c in COLS_TABLA if c in df_sel.columns]
     df_tabla  = df_sel[cols_disp].round(4)
 
@@ -439,6 +456,7 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad):
         "ciudad_label":    "Ciudad",
         "categoria_label": "Categoría",
         "peligroso_label": "Peligrosidad",
+        "cluster_label":   "Cluster",
         "hora":            "Hora",
         "mes":             "Mes",
         "fecha_str":       "Fecha",
