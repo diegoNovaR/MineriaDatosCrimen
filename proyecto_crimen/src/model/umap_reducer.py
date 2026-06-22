@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import umap
+from sklearn.decomposition import PCA
 
 RUTA_PROCESSED   = os.path.join("data", "processed")
 RUTA_OUTPUTS     = os.path.join("outputs", "umap")
@@ -15,7 +16,10 @@ RANDOM_STATE   = 42
 METRIC         = "euclidean"
 
 # Filas para ENTRENAR el modelo (estratificado por ciudad)
-N_ENTRENAMIENTO = 250_000
+N_ENTRENAMIENTO = 100_000
+
+# PCA antes de UMAP — componentes que explican este % de varianza
+PCA_VARIANZA = 0.90
 
 COLS_CONTINUAS = ["hora_scaled", "mes_scaled", "es_peligroso", "es_feriado",
                   "temperatura_scaled", "viento_scaled"]
@@ -31,7 +35,7 @@ def _construir_matriz(df_features: pd.DataFrame) -> pd.DataFrame:
             df_entrada[col] = df_features[col].values
 
     cols_ohe = [c for c in df_features.columns
-                if c.startswith(("cat_", "dia_", "ciudad_"))]
+                if c.startswith(("cat_", "dia_")) and not c.startswith("ciudad_")]
     for col in cols_ohe:
         df_entrada[col] = df_features[col].values
 
@@ -69,33 +73,48 @@ def _muestra_estratificada(df_entrada: pd.DataFrame,
 def aplicar_umap(df_features: pd.DataFrame,
                  df_unificado: pd.DataFrame) -> pd.DataFrame:
     """
-    Aplica UMAP 2D con muestra estratificada para entrenar
-    y transform() para proyectar toda la data.
+    Pipeline PCA + UMAP:
+    1. PCA reduce el vector a componentes que explican PCA_VARIANZA
+    2. UMAP entrena con muestra estratificada y proyecta toda la data
     """
     os.makedirs(RUTA_OUTPUTS, exist_ok=True)
     os.makedirs(RUTA_PROCESSED, exist_ok=True)
 
     print(f"\n{'='*55}")
-    print(f"  UMAP — REDUCCIÓN DE DIMENSIONALIDAD A 2D")
+    print(f"  PCA + UMAP — REDUCCIÓN DE DIMENSIONALIDAD A 2D")
     print(f"{'='*55}")
 
     n = min(len(df_features), len(df_unificado))
     df_feat = df_features.iloc[:n].reset_index(drop=True)
     df_unif = df_unificado.iloc[:n].reset_index(drop=True)
 
-    # Construir matriz completa (solo desde el vector de características)
+    # Construir matriz completa
     X = _construir_matriz(df_feat)
+    print(f"  Columnas entrada (pre-PCA) : {X.shape[1]}")
+    print(f"  Filas totales              : {len(X):,}")
 
-    print(f"  Columnas entrada : {X.shape[1]}")
-    print(f"  Filas totales    : {len(X):,}")
+    # ── Paso 1: PCA ──────────────────────────────────────────────────────
+    print(f"\n  [PASO 1] PCA — reduciendo con varianza objetivo={PCA_VARIANZA*100:.0f}%")
+    pca = PCA(n_components=PCA_VARIANZA, random_state=RANDOM_STATE)
+    X_pca = pca.fit_transform(X.values)
+    n_comp = pca.n_components_
+    var_exp = pca.explained_variance_ratio_.sum() * 100
+    print(f"  Componentes PCA resultantes: {n_comp}")
+    print(f"  Varianza explicada         : {var_exp:.2f}%")
+    print(f"  Columnas reducidas         : {X.shape[1]} → {n_comp}")
+
+    # Convertir a DataFrame para muestra estratificada
+    X_pca_df = pd.DataFrame(X_pca)
+
+    # ── Paso 2: UMAP ─────────────────────────────────────────────────────
+    print(f"\n  [PASO 2] UMAP")
     print(f"  Filas entrenamiento: {N_ENTRENAMIENTO:,} (estratificado por ciudad)")
-    print(f"  Parámetros       : n_neighbors={N_NEIGHBORS}, "
+    print(f"  Parámetros         : n_neighbors={N_NEIGHBORS}, "
           f"min_dist={MIN_DIST}, metric={METRIC}")
 
-    # Muestra estratificada para entrenamiento
     print(f"\n  [Muestra de entrenamiento por ciudad]")
-    idx_train = _muestra_estratificada(X, df_unif, N_ENTRENAMIENTO)
-    X_train   = X.iloc[idx_train].values
+    idx_train = _muestra_estratificada(X_pca_df, df_unif, N_ENTRENAMIENTO)
+    X_train   = X_pca_df.iloc[idx_train].values
 
     print(f"\n  Entrenando UMAP con {len(X_train):,} filas...")
     reducer = umap.UMAP(
@@ -108,14 +127,12 @@ def aplicar_umap(df_features: pd.DataFrame,
     )
     reducer.fit(X_train)
 
-    # Proyectar toda la data
-    print(f"\n  Proyectando {len(X):,} filas con transform()...")
-    X_umap = reducer.transform(X.values)
+    print(f"\n  Proyectando {len(X_pca_df):,} filas con transform()...")
+    X_umap = reducer.transform(X_pca_df.values)
 
     df_umap = pd.DataFrame(X_umap, columns=["umap1", "umap2"])
     df_umap.to_csv(ARCHIVO_UMAP_2D, index=False, encoding="utf-8")
 
-    # Verificar
     verificacion = pd.read_csv(ARCHIVO_UMAP_2D)
     print(f"\n  Filas exportadas : {len(verificacion):,}")
     print(f"  Nulos en CSV     : {verificacion.isnull().sum().sum()}")

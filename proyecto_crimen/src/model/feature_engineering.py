@@ -83,6 +83,13 @@ def generar_features(df_unificado: pd.DataFrame) -> pd.DataFrame:
     df = df_unificado.copy()
     df["fecha"] = pd.to_datetime(df["fecha"], errors="coerce")
 
+    # Filtrar sin_relevancia ANTES de generar el vector
+    antes = len(df)
+    df = df[df["categoria_delito"] != "sin_relevancia"].copy()
+    print(f"  [filtro] sin_relevancia eliminados: {antes - len(df):,} "
+          f"({(antes - len(df))/antes*100:.1f}%)")
+    print(f"  [filtro] Registros restantes: {len(df):,}")
+
     # 1. Agregar es_feriado ANTES de eliminar fecha
     df = _agregar_es_feriado(df)
 

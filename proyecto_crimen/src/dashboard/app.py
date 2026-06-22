@@ -10,8 +10,10 @@ from plotly.subplots import make_subplots
 # ─── Configuración ────────────────────────────────────────────────────────────
 RUTA_UNIFIED   = os.path.join("data", "processed", "crime_unified.csv")
 RUTA_UMAP      = os.path.join("data", "processed", "crime_umap_2d.csv")
+RUTA_TSNE      = os.path.join("data", "processed", "crime_tsne_2d.csv")
+RUTA_TSNE_IDX  = os.path.join("data", "processed", "crime_tsne_indices.csv")
 RUTA_CLUSTERS  = os.path.join("data", "processed", "crime_clusters.csv")
-N_MUESTRA     = 95_000   # puntos por scatter (estratificado por ciudad)
+N_MUESTRA     = 90_000   # puntos por scatter (estratificado por ciudad)
 RANDOM_STATE  = 42
 
 METODO_INFO = "UMAP  |  n_neighbors=15  |  min_dist=0.1  |  metric=euclidean  |  sin lat/lon en el vector"
@@ -63,36 +65,59 @@ def cargar_datos():
     df_unif = df_unif.iloc[:n].reset_index(drop=True)
     df_umap = df_umap.iloc[:n].reset_index(drop=True)
 
-    df = pd.concat([df_umap, df_unif], axis=1)
-    df["idx_original"]   = df.index
-    df["ciudad_label"]   = df["ciudad"].map(CIUDADES_LABEL).fillna(df["ciudad"])
-    df["categoria_label"]= df["categoria_delito"].map(CATEGORIA_LABEL).fillna(df["categoria_delito"])
-    df["peligroso_label"]= df["es_peligroso"].astype(bool).map({True: "Peligroso", False: "No peligroso"})
-    df["fecha_str"]      = pd.to_datetime(df["fecha"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
 
-    # Calcular es_feriado (igual que en feature_engineering.py)
+def cargar_datos():
+    print("Cargando datos...")
+    df_unif = pd.read_csv(RUTA_UNIFIED, low_memory=False, parse_dates=["fecha"])
+
+    # UMAP
+    df_umap = pd.read_csv(RUTA_UMAP, low_memory=False) if os.path.exists(RUTA_UMAP) else pd.DataFrame()
+
+    # t-SNE
+    df_tsne, idx_tsne = pd.DataFrame(), np.array([])
+    if os.path.exists(RUTA_TSNE) and os.path.exists(RUTA_TSNE_IDX):
+        df_tsne  = pd.read_csv(RUTA_TSNE, low_memory=False)
+        idx_tsne = pd.read_csv(RUTA_TSNE_IDX)["idx_original"].values
+        print(f"  t-SNE cargado: {len(df_tsne):,} filas")
+
+    n = min(len(df_unif), len(df_umap)) if not df_umap.empty else len(df_unif)
+    df_unif = df_unif.iloc[:n].reset_index(drop=True)
+
+    df = df_unif.copy()
+    df["idx_original"] = df.index
+
+    if not df_umap.empty:
+        df["umap1"] = df_umap["umap1"].iloc[:n].values
+        df["umap2"] = df_umap["umap2"].iloc[:n].values
+    else:
+        df["umap1"] = np.nan
+        df["umap2"] = np.nan
+
+    df["ciudad_label"]    = df["ciudad"].map(CIUDADES_LABEL).fillna(df["ciudad"])
+    df["categoria_label"] = df["categoria_delito"].map(CATEGORIA_LABEL).fillna(df["categoria_delito"])
+    df["peligroso_label"] = df["es_peligroso"].astype(bool).map({True: "Peligroso", False: "No peligroso"})
+    df["fecha_str"]       = pd.to_datetime(df["fecha"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
+
     import holidays
     ESTADO_POR_CIUDAD = {"chicago": "IL", "philadelphia": "PA", "san_francisco": "CA"}
     anios = df["fecha"].dt.year.dropna().unique().tolist()
     calendarios = {c: holidays.US(state=e, years=anios) for c, e in ESTADO_POR_CIUDAD.items()}
     df["es_feriado"] = df.apply(
         lambda row: int(row["fecha"].date() in calendarios.get(row["ciudad"], {}))
-        if pd.notna(row["fecha"]) else 0,
-        axis=1
+        if pd.notna(row["fecha"]) else 0, axis=1
     )
 
-    # Agregar clusters si existen
     if os.path.exists(RUTA_CLUSTERS):
-        df_clusters = pd.read_csv(RUTA_CLUSTERS)
-        n_cl = min(len(df_clusters), n)
-        df["cluster"] = df_clusters["cluster"].iloc[:n_cl].values
+        df_cl = pd.read_csv(RUTA_CLUSTERS)
+        n_cl  = min(len(df_cl), n)
+        df["cluster"]       = df_cl["cluster"].iloc[:n_cl].values
         df["cluster_label"] = "Cluster " + df["cluster"].astype(str)
-        print(f"  Clusters cargados: {df['cluster'].nunique()} grupos")
     else:
         df["cluster_label"] = "Sin cluster"
 
     print(f"Datos cargados: {len(df):,} registros")
-    return df
+    return df, df_tsne, idx_tsne
+
 
 
 def muestra_estratificada(df):
@@ -108,7 +133,7 @@ def muestra_estratificada(df):
     return pd.concat(frames, ignore_index=True)
 
 
-DF_FULL   = cargar_datos()
+DF_FULL, DF_TSNE, IDX_TSNE = cargar_datos()
 DF_SAMPLE = muestra_estratificada(DF_FULL)
 
 # ─── App ──────────────────────────────────────────────────────────────────────
@@ -164,6 +189,20 @@ app.layout = html.Div([
                 updatemode="drag",
             ),
         ], style={"display": "flex", "alignItems": "center", "gap": "10px", "width": "200px"}),
+
+        html.Div([
+            html.Label("Método proyección:", style={"fontWeight": "bold", "fontSize": "13px"}),
+            dcc.Dropdown(
+                id="dd-metodo",
+                options=[
+                    {"label": "UMAP", "value": "umap"},
+                    {"label": "t-SNE", "value": "tsne"},
+                ],
+                value="umap",
+                clearable=False,
+                style={"width": "140px"},
+            ),
+        ], style={"display": "flex", "alignItems": "center", "gap": "10px"}),
 
         html.Div(id="info-seleccion", style={"fontSize": "13px", "color": "#555", "marginLeft": "auto"}),
     ], style={"display": "flex", "alignItems": "center", "gap": "24px",
@@ -267,12 +306,27 @@ def _filtrar(dd_ciudad):
 
 @app.callback(
     Output("scatter-umap", "figure"),
-    Input("dd-color", "value"),
+    Input("dd-color",  "value"),
     Input("dd-ciudad", "value"),
-    Input("slider-size", "value"),
+    Input("slider-size","value"),
+    Input("dd-metodo", "value"),
 )
-def actualizar_scatter(color_col, dd_ciudad, punto_size):
-    df = _filtrar(dd_ciudad)
+def actualizar_scatter(color_col, dd_ciudad, punto_size, metodo):
+    # Seleccionar datos según método
+    if metodo == "tsne" and len(DF_TSNE) > 0:
+        # Para t-SNE usar los índices originales del unificado
+        df_base = DF_FULL.iloc[IDX_TSNE].copy().reset_index(drop=True)
+        df_base["umap1"] = DF_TSNE["tsne1"].values
+        df_base["umap2"] = DF_TSNE["tsne2"].values
+        eje_x, eje_y = "t-SNE 1", "t-SNE 2"
+        titulo_metodo = f"t-SNE 2D  |  perplexity=30  |  n_iter=1000"
+    else:
+        df_base = DF_SAMPLE.copy()
+        eje_x, eje_y = "UMAP 1", "UMAP 2"
+        titulo_metodo = "UMAP 2D  |  n_neighbors=15  |  min_dist=0.1"
+
+    if dd_ciudad != "todas":
+        df_base = df_base[df_base["ciudad_label"] == dd_ciudad]
 
     if color_col == "ciudad_label":
         color_map = COLORES_CIUDAD
@@ -292,14 +346,16 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size):
     }
 
     fig = px.scatter(
-        df, x="umap1", y="umap2",
+        df_base, x="umap1", y="umap2",
         color=color_col,
         color_discrete_map=color_map,
         custom_data=["idx_original", "ciudad_label", "categoria_label",
                      "peligroso_label", "hora", "mes", "fecha_str",
                      "latitud", "longitud", "temperatura", "cluster_label"],
-        labels={"umap1": "UMAP 1", "umap2": "UMAP 2", color_col: label_map.get(color_col, color_col)},
+        labels={"umap1": eje_x, "umap2": eje_y,
+                color_col: label_map.get(color_col, color_col)},
         opacity=0.5,
+        title=titulo_metodo,
     )
     fig.update_traces(
         marker=dict(size=punto_size),
@@ -339,9 +395,18 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size):
     Input("scatter-umap", "selectedData"),
     Input("scatter-umap", "clickData"),
     Input("dd-ciudad",    "value"),
+    Input("dd-metodo",    "value"),
 )
-def actualizar_vistas(selected_data, click_data, dd_ciudad):
-    df_base = _filtrar(dd_ciudad)
+def actualizar_vistas(selected_data, click_data, dd_ciudad, metodo):
+    if metodo == "tsne" and len(DF_TSNE) > 0:
+        df_base = DF_FULL.iloc[IDX_TSNE].copy().reset_index(drop=True)
+        df_base["umap1"] = DF_TSNE["tsne1"].values
+        df_base["umap2"] = DF_TSNE["tsne2"].values
+    else:
+        df_base = DF_SAMPLE.copy()
+
+    if dd_ciudad != "todas":
+        df_base = df_base[df_base["ciudad_label"] == dd_ciudad]
 
     # Priorizar selección brush; si no hay, usar click individual con shift
     if selected_data and selected_data.get("points"):

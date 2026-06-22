@@ -18,6 +18,7 @@ from src.model.pca_viz import graficar_interactivo
 from src.model.umap_reducer import aplicar_umap, cargar_umap_2d
 from src.model.umap_viz import graficar_umap
 from src.model.kmeans_clustering import aplicar_kmeans, cargar_clusters
+from src.model.tsne_reducer import aplicar_tsne, cargar_tsne_2d
 from src.loader.weather_loader import cargar_clima
 from src.transformer.weather_merger import unir_clima, analizar_nulos_clima
 #from src.dashboard.web_dashboard import generar_web_dashboard
@@ -107,6 +108,8 @@ def menu_principal():
     print(" 13. Clustering geográfico + comportamental por ciudad")
     print(" 29. Aplicar K-Means sobre vector de características")
     print(" 30. Cargar crime_clusters.csv")
+    print(" 31. Aplicar PCA + t-SNE → crime_tsne_2d.csv")
+    print(" 32. Cargar crime_tsne_2d.csv")
     print("")
     print("  [FEATURE ENGINEERING]")
     print(" 15. Unificar datasets transformados → crime_unified.csv")
@@ -223,6 +226,18 @@ def main():
 
         elif opcion == "30":
             df_clusters = cargar_clusters()
+
+        elif opcion == "31":
+            if df_features is None:
+                print("\n  [AVISO] Primero carga el vector de características (opción 16 o 18).")
+            elif df_unificado is None:
+                print("\n  [AVISO] Primero carga el dataset unificado (opción 15 o 17).")
+            else:
+                aplicar_tsne(df_features, df_unificado)
+                print(f"\n  ✔ t-SNE completado → crime_tsne_2d.csv")
+
+        elif opcion == "32":
+            cargar_tsne_2d()
 
         elif opcion == "15":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):

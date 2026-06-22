@@ -12,7 +12,11 @@ K_MAX        = 10
 RANDOM_STATE = 42
 N_INIT       = 10
 # Muestra para Silhouette (costoso con 473k)
-N_SILHOUETTE = 20_000
+N_SILHOUETTE = 50_000
+
+# Si K_FORZADO > 0 se usa directamente sin calcular Silhouette
+# Si K_FORZADO = 0 se calcula automáticamente con Silhouette
+K_FORZADO = 8
 
 
 def aplicar_kmeans(df_features: pd.DataFrame) -> pd.DataFrame:
@@ -28,7 +32,10 @@ def aplicar_kmeans(df_features: pd.DataFrame) -> pd.DataFrame:
     print(f"{'='*55}")
     print(f"  Filas         : {len(df_features):,}")
     print(f"  Columnas      : {df_features.shape[1]}")
-    print(f"  Rango k       : {K_MIN} a {K_MAX}")
+    if K_FORZADO > 0:
+        print(f"  k forzado     : {K_FORZADO} (Silhouette desactivado)")
+    else:
+        print(f"  Rango k       : {K_MIN} a {K_MAX}")
 
     X = df_features.copy()
 
@@ -36,27 +43,32 @@ def aplicar_kmeans(df_features: pd.DataFrame) -> pd.DataFrame:
     if X.isnull().sum().sum() > 0:
         X = X.fillna(X.mean())
 
-    # ── Silhouette Score para elegir k óptimo ─────────────────────────────
-    print(f"\n  [Silhouette Score — muestra de {N_SILHOUETTE:,} filas]")
-    rng     = np.random.default_rng(RANDOM_STATE)
-    idx_sil = rng.choice(len(X), size=min(N_SILHOUETTE, len(X)), replace=False)
-    X_sil   = X.iloc[idx_sil].values
+    # ── Determinar k ──────────────────────────────────────────────────────
+    if K_FORZADO > 0:
+        k_optimo = K_FORZADO
+        print(f"\n  k seleccionado: {k_optimo} (forzado manualmente)")
+    else:
+        # Silhouette Score para elegir k óptimo
+        print(f"\n  [Silhouette Score — muestra de {N_SILHOUETTE:,} filas]")
+        rng     = np.random.default_rng(RANDOM_STATE)
+        idx_sil = rng.choice(len(X), size=min(N_SILHOUETTE, len(X)), replace=False)
+        X_sil   = X.iloc[idx_sil].values
 
-    scores = {}
-    for k in range(K_MIN, K_MAX + 1):
-        km     = KMeans(n_clusters=k, random_state=RANDOM_STATE,
-                        n_init=N_INIT, max_iter=300)
-        labels = km.fit_predict(X_sil)
-        score  = silhouette_score(X_sil, labels,
-                                  sample_size=10_000,
-                                  random_state=RANDOM_STATE)
-        scores[k] = score
-        marca = " ◄" if score == max(scores.values()) else ""
-        print(f"    k={k:>2}  Silhouette={score:.4f}{marca}")
+        scores = {}
+        for k in range(K_MIN, K_MAX + 1):
+            km     = KMeans(n_clusters=k, random_state=RANDOM_STATE,
+                            n_init=N_INIT, max_iter=300)
+            labels = km.fit_predict(X_sil)
+            score  = silhouette_score(X_sil, labels,
+                                      sample_size=10_000,
+                                      random_state=RANDOM_STATE)
+            scores[k] = score
+            marca = " ◄" if score == max(scores.values()) else ""
+            print(f"    k={k:>2}  Silhouette={score:.4f}{marca}")
 
-    k_optimo = max(scores, key=scores.get)
-    print(f"\n  k óptimo seleccionado: {k_optimo}  "
-          f"(Silhouette={scores[k_optimo]:.4f})")
+        k_optimo = max(scores, key=scores.get)
+        print(f"\n  k óptimo seleccionado: {k_optimo}  "
+              f"(Silhouette={scores[k_optimo]:.4f})")
 
     # ── K-Means final sobre toda la data ──────────────────────────────────
     print(f"\n  Aplicando K-Means (k={k_optimo}) sobre {len(X):,} filas...")
