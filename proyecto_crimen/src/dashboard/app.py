@@ -13,7 +13,8 @@ RUTA_UMAP      = os.path.join("data", "processed", "crime_umap_2d.csv")
 RUTA_TSNE      = os.path.join("data", "processed", "crime_tsne_2d.csv")
 RUTA_TSNE_IDX  = os.path.join("data", "processed", "crime_tsne_indices.csv")
 RUTA_CLUSTERS  = os.path.join("data", "processed", "crime_clusters.csv")
-N_MUESTRA     = 90_000   # puntos por scatter (estratificado por ciudad)
+RUTA_DBSCAN    = os.path.join("data", "processed", "crime_dbscan.csv")
+N_MUESTRA     = 15_000   # puntos por scatter (estratificado por ciudad)
 RANDOM_STATE  = 42
 
 METODO_INFO = "UMAP  |  n_neighbors=15  |  min_dist=0.1  |  metric=euclidean  |  sin lat/lon en el vector"
@@ -22,6 +23,20 @@ COLORES_CIUDAD = {
     "Chicago":       "#2196F3",
     "Philadelphia":  "#F44336",
     "San Francisco": "#4CAF50",
+}
+COLORES_DBSCAN = {
+    "Ruido":    "#cccccc",
+    "Sin dato": "#eeeeee",
+    "DBSCAN 0": "#E53935",
+    "DBSCAN 1": "#1E88E5",
+    "DBSCAN 2": "#43A047",
+    "DBSCAN 3": "#FB8C00",
+    "DBSCAN 4": "#8E24AA",
+    "DBSCAN 5": "#00ACC1",
+    "DBSCAN 6": "#F4511E",
+    "DBSCAN 7": "#6D4C41",
+    "DBSCAN 8": "#FFB300",
+    "DBSCAN 9": "#3949AB",
 }
 COLORES_PELIGROSO = {
     "Peligroso":    "#EF5350",
@@ -115,6 +130,21 @@ def cargar_datos():
     else:
         df["cluster_label"] = "Sin cluster"
 
+    # Clusters DBSCAN
+    if os.path.exists(RUTA_DBSCAN):
+        df_db  = pd.read_csv(RUTA_DBSCAN)
+        idx_db = df_db["idx_original"].values
+        lbl_db = df_db["dbscan_label"].values
+        dbscan_map = pd.Series(lbl_db, index=idx_db)
+        df["dbscan_label_num"] = df["idx_original"].map(dbscan_map).fillna(-2).astype(int)
+        df["dbscan_label"] = df["dbscan_label_num"].apply(
+            lambda x: "Ruido" if x == -1 else ("Sin dato" if x == -2 else f"DBSCAN {x}")
+        )
+        n_db = (df["dbscan_label_num"] >= 0).sum()
+        print(f"  DBSCAN cargado: {n_db:,} puntos en clusters")
+    else:
+        df["dbscan_label"] = "Sin DBSCAN"
+
     print(f"Datos cargados: {len(df):,} registros")
     return df, df_tsne, idx_tsne
 
@@ -160,6 +190,7 @@ app.layout = html.Div([
                     {"label": "Categoría",         "value": "categoria_label"},
                     {"label": "Peligrosidad",      "value": "peligroso_label"},
                     {"label": "Cluster K-Means",   "value": "cluster_label"},
+                    {"label": "Cluster DBSCAN",    "value": "dbscan_label"},
                 ],
                 value="ciudad_label",
                 clearable=False,
@@ -211,7 +242,7 @@ app.layout = html.Div([
     # Fila principal: Scatter + Coordenadas paralelas
     html.Div([
         html.Div([
-            html.H4("Proyección UMAP 2D", style={"margin": "0 0 4px 0", "fontSize": "14px"}),
+            html.H4(id="titulo-scatter", style={"margin": "0 0 4px 0", "fontSize": "14px"}),
             html.P("Selecciona puntos con Box Select o Lasso para coordinar las vistas",
                    style={"margin": "0 0 8px 0", "fontSize": "11px", "color": "#777"}),
             dcc.Graph(id="scatter-umap", style={"height": "420px"},
@@ -254,6 +285,56 @@ app.layout = html.Div([
         ], style={"flex": "1", "background": "white", "borderRadius": "8px",
                   "padding": "12px", "boxShadow": "0 1px 4px rgba(0,0,0,0.1)"}),
     ], style={"display": "flex", "gap": "12px", "padding": "0 24px 12px 24px"}),
+
+    # Fila: Mapas por ciudad (tabs)
+    html.Div([
+        html.Div([
+            html.Div([
+                html.H4("Mapa de ubicación de delitos por ciudad",
+                        style={"margin": "0", "fontSize": "14px"}),
+                html.P("Selecciona puntos en el scatter — cada tab muestra una ciudad",
+                       style={"margin": "4px 0 0 0", "fontSize": "11px", "color": "#777"}),
+            ]),
+            html.Div([
+                html.Label("Color en mapa:", style={"fontSize": "12px", "marginRight": "6px"}),
+                dcc.Dropdown(
+                    id="dd-mapa-color",
+                    options=[
+                        {"label": "Peligrosidad",  "value": "peligroso_label"},
+                        {"label": "Categoría",     "value": "categoria_label"},
+                        {"label": "Cluster DBSCAN","value": "dbscan_label"},
+                        {"label": "K-Means",       "value": "cluster_label"},
+                    ],
+                    value="peligroso_label",
+                    clearable=False,
+                    style={"width": "160px", "fontSize": "12px"},
+                ),
+            ], style={"display": "flex", "alignItems": "center"}),
+        ], style={"display": "flex", "justifyContent": "space-between",
+                  "alignItems": "center", "marginBottom": "12px"}),
+
+        dcc.Tabs([
+            dcc.Tab(label="🔵 Chicago", children=[
+                dcc.Graph(id="mapa-chicago", style={"height": "420px"}),
+            ], style={"fontWeight": "bold", "color": "#2196F3"},
+               selected_style={"fontWeight": "bold", "color": "#2196F3",
+                               "borderTop": "3px solid #2196F3"}),
+
+            dcc.Tab(label="🔴 Philadelphia", children=[
+                dcc.Graph(id="mapa-philadelphia", style={"height": "420px"}),
+            ], style={"fontWeight": "bold", "color": "#F44336"},
+               selected_style={"fontWeight": "bold", "color": "#F44336",
+                               "borderTop": "3px solid #F44336"}),
+
+            dcc.Tab(label="🟢 San Francisco", children=[
+                dcc.Graph(id="mapa-sanfrancisco", style={"height": "420px"}),
+            ], style={"fontWeight": "bold", "color": "#4CAF50"},
+               selected_style={"fontWeight": "bold", "color": "#4CAF50",
+                               "borderTop": "3px solid #4CAF50"}),
+        ], style={"fontFamily": "Segoe UI, Arial, sans-serif"}),
+
+    ], style={"background": "white", "borderRadius": "8px", "padding": "16px",
+              "margin": "0 24px 12px 24px", "boxShadow": "0 1px 4px rgba(0,0,0,0.1)"}),
 
     # Tabla comparativa
     html.Div([
@@ -305,25 +386,26 @@ def _filtrar(dd_ciudad):
 
 
 @app.callback(
-    Output("scatter-umap", "figure"),
-    Input("dd-color",  "value"),
-    Input("dd-ciudad", "value"),
+    Output("scatter-umap",   "figure"),
+    Output("titulo-scatter", "children"),
+    Input("dd-color",   "value"),
+    Input("dd-ciudad",  "value"),
     Input("slider-size","value"),
-    Input("dd-metodo", "value"),
+    Input("dd-metodo",  "value"),
 )
 def actualizar_scatter(color_col, dd_ciudad, punto_size, metodo):
-    # Seleccionar datos según método
     if metodo == "tsne" and len(DF_TSNE) > 0:
-        # Para t-SNE usar los índices originales del unificado
         df_base = DF_FULL.iloc[IDX_TSNE].copy().reset_index(drop=True)
         df_base["umap1"] = DF_TSNE["tsne1"].values
         df_base["umap2"] = DF_TSNE["tsne2"].values
-        eje_x, eje_y = "t-SNE 1", "t-SNE 2"
-        titulo_metodo = f"t-SNE 2D  |  perplexity=30  |  n_iter=1000"
+        eje_x, eje_y    = "t-SNE 1", "t-SNE 2"
+        titulo_metodo   = "t-SNE 2D  |  perplexity=30  |  n_iter=1000"
+        titulo_panel    = "Proyección t-SNE 2D"
     else:
-        df_base = DF_SAMPLE.copy()
-        eje_x, eje_y = "UMAP 1", "UMAP 2"
+        df_base       = DF_SAMPLE.copy()
+        eje_x, eje_y  = "UMAP 1", "UMAP 2"
         titulo_metodo = "UMAP 2D  |  n_neighbors=15  |  min_dist=0.1"
+        titulo_panel  = "Proyección UMAP 2D"
 
     if dd_ciudad != "todas":
         df_base = df_base[df_base["ciudad_label"] == dd_ciudad]
@@ -332,8 +414,9 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size, metodo):
         color_map = COLORES_CIUDAD
     elif color_col == "peligroso_label":
         color_map = COLORES_PELIGROSO
+    elif color_col == "dbscan_label":
+        color_map = COLORES_DBSCAN
     elif color_col == "cluster_label":
-        # Paleta automática para clusters
         color_map = None
     else:
         color_map = None
@@ -343,6 +426,7 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size, metodo):
         "categoria_label": "Categoría",
         "peligroso_label": "Peligrosidad",
         "cluster_label":   "Cluster K-Means",
+        "dbscan_label":    "Cluster DBSCAN",
     }
 
     fig = px.scatter(
@@ -351,7 +435,8 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size, metodo):
         color_discrete_map=color_map,
         custom_data=["idx_original", "ciudad_label", "categoria_label",
                      "peligroso_label", "hora", "mes", "fecha_str",
-                     "latitud", "longitud", "temperatura", "cluster_label"],
+                     "latitud", "longitud", "temperatura", "cluster_label",
+                     "dbscan_label"],
         labels={"umap1": eje_x, "umap2": eje_y,
                 color_col: label_map.get(color_col, color_col)},
         opacity=0.5,
@@ -370,18 +455,19 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size, metodo):
             "<b>Latitud</b>: %{customdata[7]}<br>"
             "<b>Longitud</b>: %{customdata[8]}<br>"
             "<b>Temperatura</b>: %{customdata[9]}°C<br>"
-            "<b>Cluster</b>: %{customdata[10]}<br>"
+            "<b>K-Means</b>: %{customdata[10]}<br>"
+            "<b>DBSCAN</b>: %{customdata[11]}<br>"
             "<extra></extra>"
         )
     )
     fig.update_layout(
-        margin=dict(t=20, b=20, l=20, r=20),
+        margin=dict(t=40, b=20, l=20, r=20),
         legend=dict(title=label_map.get(color_col, color_col), font=dict(size=11)),
         dragmode="select",
         clickmode="event+select",
         uirevision="scatter",
     )
-    return fig
+    return fig, titulo_panel
 
 
 @app.callback(
@@ -511,7 +597,7 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad, metodo):
 
     # ── Tabla comparativa ───────────────────────────────────────────────────
     COLS_TABLA = ["idx_original", "ciudad_label", "categoria_label", "peligroso_label",
-                  "cluster_label", "hora", "mes", "fecha_str", "es_feriado",
+                  "cluster_label", "dbscan_label", "hora", "mes", "fecha_str", "es_feriado",
                   "latitud", "longitud", "temperatura", "viento", "umap1", "umap2"]
     cols_disp = [c for c in COLS_TABLA if c in df_sel.columns]
     df_tabla  = df_sel[cols_disp].round(4)
@@ -521,7 +607,8 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad, metodo):
         "ciudad_label":    "Ciudad",
         "categoria_label": "Categoría",
         "peligroso_label": "Peligrosidad",
-        "cluster_label":   "Cluster",
+        "cluster_label":   "Cluster K-Means",
+        "dbscan_label":    "Cluster DBSCAN",
         "hora":            "Hora",
         "mes":             "Mes",
         "fecha_str":       "Fecha",
@@ -549,6 +636,111 @@ def actualizar_page_size(page_size, data):
     if page_size == 99999:
         return max(n_filas, 1)
     return page_size
+
+
+# Configuración de zoom por ciudad
+CIUDAD_CONFIG = {
+    "Chicago":       {"lat": 41.8500, "lon": -87.6500, "zoom": 10},
+    "Philadelphia":  {"lat": 39.9800, "lon": -75.1500, "zoom": 10},
+    "San Francisco": {"lat": 37.7700, "lon": -122.4200, "zoom": 11},
+}
+
+
+def _construir_mapa(df_full_sel: pd.DataFrame, ciudad: str,
+                    color_col: str) -> go.Figure:
+    """Construye el mapa para una ciudad específica."""
+    cfg = CIUDAD_CONFIG[ciudad]
+    df_ciudad = df_full_sel[df_full_sel["ciudad_label"] == ciudad].dropna(
+        subset=["latitud", "longitud"]
+    )
+
+    if color_col == "peligroso_label":
+        color_map = COLORES_PELIGROSO
+    elif color_col == "dbscan_label":
+        color_map = COLORES_DBSCAN
+    else:
+        color_map = None
+
+    label_map = {
+        "categoria_label": "Categoría",
+        "peligroso_label": "Peligrosidad",
+        "dbscan_label":    "Cluster DBSCAN",
+        "cluster_label":   "Cluster K-Means",
+    }
+
+    if df_ciudad.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            mapbox=dict(style="open-street-map",
+                        center=dict(lat=cfg["lat"], lon=cfg["lon"]),
+                        zoom=cfg["zoom"]),
+            margin=dict(t=30, b=0, l=0, r=0),
+            annotations=[dict(text=f"Sin datos de {ciudad} en la selección",
+                              showarrow=False, font=dict(size=14),
+                              xref="paper", yref="paper", x=0.5, y=0.5)],
+        )
+        return fig
+
+    fig = px.scatter_mapbox(
+        df_ciudad,
+        lat="latitud",
+        lon="longitud",
+        color=color_col,
+        color_discrete_map=color_map,
+        hover_data={
+            "ciudad_label":    True,
+            "categoria_label": True,
+            "peligroso_label": True,
+            "hora":            True,
+            "fecha_str":       True,
+            "latitud":         False,
+            "longitud":        False,
+        },
+        zoom=cfg["zoom"],
+        center={"lat": cfg["lat"], "lon": cfg["lon"]},
+        labels={color_col: label_map.get(color_col, color_col)},
+        opacity=0.7,
+        title=f"{ciudad} — {len(df_ciudad):,} delitos",
+    )
+    fig.update_traces(marker=dict(size=6))
+    fig.update_layout(
+        mapbox_style="open-street-map",
+        margin=dict(t=30, b=0, l=0, r=0),
+        legend=dict(font=dict(size=10)),
+    )
+    return fig
+
+
+@app.callback(
+    Output("mapa-chicago",      "figure"),
+    Output("mapa-philadelphia", "figure"),
+    Output("mapa-sanfrancisco", "figure"),
+    Input("scatter-umap",  "selectedData"),
+    Input("scatter-umap",  "clickData"),
+    Input("dd-ciudad",     "value"),
+    Input("dd-mapa-color", "value"),
+)
+def actualizar_mapas(selected_data, click_data, dd_ciudad, color_col):
+
+    # Determinar subset según selección
+    if selected_data and selected_data.get("points"):
+        indices    = [p["customdata"][0] for p in selected_data["points"]]
+        df_sel     = DF_FULL[DF_FULL["idx_original"].isin(indices)].copy()
+    elif click_data and click_data.get("points"):
+        indices    = [p["customdata"][0] for p in click_data["points"]]
+        df_sel     = DF_FULL[DF_FULL["idx_original"].isin(indices)].copy()
+    else:
+        df_sel = DF_SAMPLE.copy()
+
+    # Filtro global por ciudad si aplica
+    if dd_ciudad != "todas":
+        df_sel = df_sel[df_sel["ciudad_label"] == dd_ciudad]
+
+    fig_chi  = _construir_mapa(df_sel, "Chicago",       color_col)
+    fig_phi  = _construir_mapa(df_sel, "Philadelphia",  color_col)
+    fig_sf   = _construir_mapa(df_sel, "San Francisco", color_col)
+
+    return fig_chi, fig_phi, fig_sf
 
 
 # ─── Run ──────────────────────────────────────────────────────────────────────

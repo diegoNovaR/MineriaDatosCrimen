@@ -19,6 +19,7 @@ from src.model.umap_reducer import aplicar_umap, cargar_umap_2d
 from src.model.umap_viz import graficar_umap
 from src.model.kmeans_clustering import aplicar_kmeans, cargar_clusters
 from src.model.tsne_reducer import aplicar_tsne, cargar_tsne_2d
+from src.model.dbscan_clustering import aplicar_dbscan, cargar_dbscan
 from src.loader.weather_loader import cargar_clima
 from src.transformer.weather_merger import unir_clima, analizar_nulos_clima
 #from src.dashboard.web_dashboard import generar_web_dashboard
@@ -110,6 +111,8 @@ def menu_principal():
     print(" 30. Cargar crime_clusters.csv")
     print(" 31. Aplicar PCA + t-SNE → crime_tsne_2d.csv")
     print(" 32. Cargar crime_tsne_2d.csv")
+    print(" 33. Aplicar DBSCAN sobre proyección 2D → crime_dbscan.csv")
+    print(" 34. Cargar crime_dbscan.csv")
     print("")
     print("  [FEATURE ENGINEERING]")
     print(" 15. Unificar datasets transformados → crime_unified.csv")
@@ -238,6 +241,12 @@ def main():
 
         elif opcion == "32":
             cargar_tsne_2d()
+
+        elif opcion == "33":
+            aplicar_dbscan()
+
+        elif opcion == "34":
+            cargar_dbscan()
 
         elif opcion == "15":
             if _verificar(datasets_transformados, "No hay datos transformados. Ejecuta la opción 7 primero."):
