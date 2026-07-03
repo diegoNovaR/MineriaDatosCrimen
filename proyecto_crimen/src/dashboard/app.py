@@ -262,26 +262,50 @@ app.layout = html.Div([
     # Fila: Histogramas + Heatmap
     html.Div([
         html.Div([
-            html.H4("Distribución por Hora y Mes", style={"margin": "0 0 4px 0", "fontSize": "14px"}),
-            dcc.Graph(id="histogramas", style={"height": "300px"}),
+            html.H4("Distribución por Hora, Mes y Día de semana",
+                    style={"margin": "0 0 4px 0", "fontSize": "14px"}),
+            html.P("Distribución temporal de los puntos seleccionados",
+                   style={"margin": "0 0 4px 0", "fontSize": "11px", "color": "#777"}),
+            dcc.Graph(id="histogramas", style={"height": "320px"}),
         ], style={"flex": "1", "background": "white", "borderRadius": "8px",
                   "padding": "12px", "boxShadow": "0 1px 4px rgba(0,0,0,0.1)"}),
 
         html.Div([
             html.H4("Heatmap: Categoría × Hora", style={"margin": "0 0 4px 0", "fontSize": "14px"}),
-            dcc.Graph(id="heatmap", style={"height": "300px"}),
+            dcc.Graph(id="heatmap", style={"height": "320px"}),
         ], style={"flex": "1.2", "background": "white", "borderRadius": "8px",
                   "padding": "12px", "boxShadow": "0 1px 4px rgba(0,0,0,0.1)"}),
     ], style={"display": "flex", "gap": "12px", "padding": "0 24px 12px 24px"}),
 
-    # Fila: Temperatura por categoría
+    # Fila: Temperatura media por categoría (sola)
     html.Div([
         html.Div([
             html.H4("Temperatura media por categoría de delito",
                     style={"margin": "0 0 4px 0", "fontSize": "14px"}),
-            html.P("Relación entre condición climática y tipo de crimen",
+            html.P("Temperatura promedio con rango mín/máx por tipo de crimen",
                    style={"margin": "0 0 8px 0", "fontSize": "11px", "color": "#777"}),
-            dcc.Graph(id="temp-categoria", style={"height": "320px"}),
+            dcc.Graph(id="temp-categoria", style={"height": "340px"}),
+        ], style={"flex": "1", "background": "white", "borderRadius": "8px",
+                  "padding": "12px", "boxShadow": "0 1px 4px rgba(0,0,0,0.1)"}),
+    ], style={"display": "flex", "gap": "12px", "padding": "0 24px 12px 24px"}),
+
+    # Fila: Heatmap temperatura + Heatmap viento (juntos)
+    html.Div([
+        html.Div([
+            html.H4("Heatmap: Categoría × Rango de temperatura",
+                    style={"margin": "0 0 4px 0", "fontSize": "14px"}),
+            html.P("Concentración de delitos según frío / templado / caliente",
+                   style={"margin": "0 0 8px 0", "fontSize": "11px", "color": "#777"}),
+            dcc.Graph(id="heatmap-temp-cat", style={"height": "340px"}),
+        ], style={"flex": "1", "background": "white", "borderRadius": "8px",
+                  "padding": "12px", "boxShadow": "0 1px 4px rgba(0,0,0,0.1)"}),
+
+        html.Div([
+            html.H4("Heatmap: Categoría × Rango de viento",
+                    style={"margin": "0 0 4px 0", "fontSize": "14px"}),
+            html.P("Concentración de delitos según calma / moderado / fuerte",
+                   style={"margin": "0 0 8px 0", "fontSize": "11px", "color": "#777"}),
+            dcc.Graph(id="heatmap-viento-cat", style={"height": "340px"}),
         ], style={"flex": "1", "background": "white", "borderRadius": "8px",
                   "padding": "12px", "boxShadow": "0 1px 4px rgba(0,0,0,0.1)"}),
     ], style={"display": "flex", "gap": "12px", "padding": "0 24px 12px 24px"}),
@@ -471,17 +495,19 @@ def actualizar_scatter(color_col, dd_ciudad, punto_size, metodo):
 
 
 @app.callback(
-    Output("histogramas",      "figure"),
-    Output("heatmap",          "figure"),
-    Output("parallel-coords",  "figure"),
-    Output("temp-categoria",   "figure"),
-    Output("tabla-comparativa","data"),
-    Output("tabla-comparativa","columns"),
-    Output("info-seleccion",   "children"),
-    Input("scatter-umap", "selectedData"),
-    Input("scatter-umap", "clickData"),
-    Input("dd-ciudad",    "value"),
-    Input("dd-metodo",    "value"),
+    Output("histogramas",        "figure"),
+    Output("heatmap",            "figure"),
+    Output("parallel-coords",    "figure"),
+    Output("temp-categoria",     "figure"),
+    Output("heatmap-temp-cat",   "figure"),
+    Output("heatmap-viento-cat", "figure"),
+    Output("tabla-comparativa",  "data"),
+    Output("tabla-comparativa",  "columns"),
+    Output("info-seleccion",     "children"),
+    Input("scatter-umap",  "selectedData"),
+    Input("scatter-umap",  "clickData"),
+    Input("dd-ciudad",     "value"),
+    Input("dd-metodo",     "value"),
 )
 def actualizar_vistas(selected_data, click_data, dd_ciudad, metodo):
     if metodo == "tsne" and len(DF_TSNE) > 0:
@@ -507,19 +533,40 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad, metodo):
         df_sel = df_base.copy()
         info   = f"Mostrando muestra: {len(df_base):,} puntos (sin selección)"
 
-    # ── Histogramas hora y mes ──────────────────────────────────────────────
-    fig_hist = make_subplots(rows=1, cols=2,
-                             subplot_titles=["Distribución por Hora", "Distribución por Mes"])
+    # ── Histogramas hora, mes y día de semana ──────────────────────────────────
+    ORDEN_DIAS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    LABEL_DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+
+    fig_hist = make_subplots(
+        rows=1, cols=3,
+        subplot_titles=["Hora del día", "Mes del año", "Día de la semana"]
+    )
     for ciudad, color in COLORES_CIUDAD.items():
         sub = df_sel[df_sel["ciudad_label"] == ciudad]
         if sub.empty:
             continue
-        fig_hist.add_trace(go.Histogram(x=sub["hora"], name=ciudad, marker_color=color,
-                                        opacity=0.7, nbinsx=24, showlegend=True), row=1, col=1)
-        fig_hist.add_trace(go.Histogram(x=sub["mes"],  name=ciudad, marker_color=color,
-                                        opacity=0.7, nbinsx=12, showlegend=False), row=1, col=2)
-    fig_hist.update_layout(margin=dict(t=30, b=20, l=20, r=20), barmode="overlay",
-                           legend=dict(font=dict(size=10)), height=280)
+        # Hora
+        fig_hist.add_trace(go.Histogram(
+            x=sub["hora"], name=ciudad, marker_color=color,
+            opacity=0.7, nbinsx=24, showlegend=True), row=1, col=1)
+        # Mes
+        fig_hist.add_trace(go.Histogram(
+            x=sub["mes"], name=ciudad, marker_color=color,
+            opacity=0.7, nbinsx=12, showlegend=False), row=1, col=2)
+        # Día de semana
+        if "dia_semana" in sub.columns:
+            conteo_dia = sub["dia_semana"].str.lower().value_counts()
+            conteo_ord = [conteo_dia.get(d, 0) for d in ORDEN_DIAS]
+            fig_hist.add_trace(go.Bar(
+                x=LABEL_DIAS, y=conteo_ord, name=ciudad,
+                marker_color=color, opacity=0.7, showlegend=False), row=1, col=3)
+
+    fig_hist.update_layout(
+        margin=dict(t=35, b=20, l=20, r=20),
+        barmode="overlay",
+        legend=dict(font=dict(size=10)),
+        height=300,
+    )
 
     # ── Heatmap categoría × hora ────────────────────────────────────────────
     pivot = (df_sel.groupby(["categoria_label", "hora"])
@@ -595,6 +642,68 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad, metodo):
         fig_temp = go.Figure()
         fig_temp.update_layout(title="Sin datos de temperatura disponibles")
 
+    # ── Heatmap temperatura × categoría ────────────────────────────────────
+    if "temperatura" in df_sel.columns and "categoria_label" in df_sel.columns:
+        df_temp_cat = df_sel[["temperatura", "categoria_label"]].dropna().copy()
+
+        # Clasificar temperatura en rangos
+        bins   = [-30, 5, 15, 25, 50]
+        labels = ["Frío (<5°C)", "Templado (5-15°C)", "Cálido (15-25°C)", "Caliente (>25°C)"]
+        df_temp_cat["rango_temp"] = pd.cut(
+            df_temp_cat["temperatura"], bins=bins, labels=labels
+        )
+        pivot_tc = (df_temp_cat
+                    .groupby(["categoria_label", "rango_temp"], observed=True)
+                    .size()
+                    .unstack(fill_value=0)
+                    .reindex(columns=labels, fill_value=0))
+
+        fig_heat_tc = px.imshow(
+            pivot_tc,
+            color_continuous_scale="Blues",
+            labels=dict(x="Rango de temperatura", y="Categoría", color="Delitos"),
+            aspect="auto",
+            title="",
+        )
+        fig_heat_tc.update_layout(
+            margin=dict(t=10, b=20, l=20, r=20),
+            height=300,
+            coloraxis_colorbar=dict(thickness=12, len=0.8),
+        )
+    else:
+        fig_heat_tc = go.Figure()
+        fig_heat_tc.update_layout(title="Sin datos disponibles")
+
+    # ── Heatmap viento × categoría ──────────────────────────────────────────
+    if "viento" in df_sel.columns and "categoria_label" in df_sel.columns:
+        df_viento_cat = df_sel[["viento", "categoria_label"]].dropna().copy()
+
+        bins_v   = [0, 10, 25, 40, 100]
+        labels_v = ["Calma (<10)", "Moderado (10-25)", "Fuerte (25-40)", "Muy fuerte (>40)"]
+        df_viento_cat["rango_viento"] = pd.cut(
+            df_viento_cat["viento"], bins=bins_v, labels=labels_v
+        )
+        pivot_vc = (df_viento_cat
+                    .groupby(["categoria_label", "rango_viento"], observed=True)
+                    .size()
+                    .unstack(fill_value=0)
+                    .reindex(columns=labels_v, fill_value=0))
+
+        fig_heat_vc = px.imshow(
+            pivot_vc,
+            color_continuous_scale="Purples",
+            labels=dict(x="Rango de viento (km/h)", y="Categoría", color="Delitos"),
+            aspect="auto",
+        )
+        fig_heat_vc.update_layout(
+            margin=dict(t=10, b=20, l=20, r=20),
+            height=300,
+            coloraxis_colorbar=dict(thickness=12, len=0.8),
+        )
+    else:
+        fig_heat_vc = go.Figure()
+        fig_heat_vc.update_layout(title="Sin datos de viento disponibles")
+
     # ── Tabla comparativa ───────────────────────────────────────────────────
     COLS_TABLA = ["idx_original", "ciudad_label", "categoria_label", "peligroso_label",
                   "cluster_label", "dbscan_label", "hora", "mes", "fecha_str", "es_feriado",
@@ -623,7 +732,7 @@ def actualizar_vistas(selected_data, click_data, dd_ciudad, metodo):
     columns = [{"name": LABELS.get(c, c), "id": c} for c in cols_disp]
     data    = df_tabla.to_dict("records")
 
-    return fig_hist, fig_heat, fig_para, fig_temp, data, columns, info
+    return fig_hist, fig_heat, fig_para, fig_temp, fig_heat_tc, fig_heat_vc, data, columns, info
 
 
 @app.callback(
